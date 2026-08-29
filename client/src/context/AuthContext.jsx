@@ -1,22 +1,73 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { getCurrentUser, login as apiLogin, signup as apiSignup, logout as apiLogout } from '../api/authApi';
 
 /**
  * Authentication Context
- * Manages user session state, login, and logout.
+ * Manages user session state, initialization from token, login, and logout.
  */
-const AuthContext = createContext(null);
+export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  // Placeholder mock state: set default user/auth state
-  const [user, setUser] = useState({ id: '1', email: 'underwriter@verdika.internal', role: 'underwriter' });
-  const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState(null);
 
-  const loginUser = async (credentials) => {
-    setUser({ id: '1', email: credentials.email, role: 'underwriter' });
+  useEffect(() => {
+    let isMounted = true;
+    const initAuth = async () => {
+      try {
+        const currentUser = await getCurrentUser();
+        if (isMounted) {
+          setUser(currentUser);
+        }
+      } catch {
+        if (isMounted) {
+          setUser(null);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initAuth();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const login = async (credentials) => {
+    setAuthError(null);
+    try {
+      const data = await apiLogin(credentials);
+      setUser(data.user);
+      return data;
+    } catch (err) {
+      setAuthError(err.message || 'Login failed');
+      throw err;
+    }
   };
 
-  const logoutUser = () => {
-    setUser(null);
+  const signup = async (userData) => {
+    setAuthError(null);
+    try {
+      const data = await apiSignup(userData);
+      setUser(data.user);
+      return data;
+    } catch (err) {
+      setAuthError(err.message || 'Signup failed');
+      throw err;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await apiLogout();
+    } finally {
+      setUser(null);
+      setAuthError(null);
+    }
   };
 
   return (
@@ -25,8 +76,10 @@ export function AuthProvider({ children }) {
         user,
         isAuthenticated: !!user,
         loading,
-        login: loginUser,
-        logout: logoutUser,
+        authError,
+        login,
+        signup,
+        logout
       }}
     >
       {children}

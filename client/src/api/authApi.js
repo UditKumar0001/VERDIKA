@@ -1,26 +1,80 @@
 /**
  * Authentication API Client
- * Placeholders for auth endpoints (login, signup, logout, getCurrentUser).
+ * Wraps fetch calls to auth endpoints using httpOnly cookies (credentials: 'include').
  */
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-export const login = async (credentials) => {
-  // Placeholder: POST /api/auth/login
-  return { user: { email: credentials.email, role: 'underwriter' }, token: 'mock-token' };
-};
-
+/**
+ * POST /api/auth/signup
+ */
 export const signup = async (userData) => {
-  // Placeholder: POST /api/auth/signup
-  return { user: { email: userData.email, role: 'underwriter' }, token: 'mock-token' };
+  const res = await fetch(`${API_BASE_URL}/auth/signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(userData)
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || (data.details ? data.details.join(', ') : 'Registration failed'));
+  }
+  return data;
 };
 
-export const logout = async () => {
-  // Placeholder: POST /api/auth/logout
-  return { success: true };
+/**
+ * POST /api/auth/login
+ */
+export const login = async (credentials) => {
+  const res = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(credentials)
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Invalid email or password');
+  }
+  return data;
 };
 
+/**
+ * GET /api/auth/me
+ */
 export const getCurrentUser = async () => {
-  // Placeholder: GET /api/auth/me
-  return null;
+  try {
+    const res = await fetch(`${API_BASE_URL}/auth/me`, {
+      method: 'GET',
+      credentials: 'include'
+    });
+
+    if (!res.ok) {
+      return null;
+    }
+
+    const data = await res.json();
+    return data.user || null;
+  } catch (error) {
+    console.error('Failed to restore user session:', error);
+    return null;
+  }
+};
+
+/**
+ * POST /api/auth/logout
+ */
+export const logout = async () => {
+  const res = await fetch(`${API_BASE_URL}/auth/logout`, {
+    method: 'POST',
+    credentials: 'include'
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Logout failed');
+  }
+  return data;
 };
