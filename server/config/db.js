@@ -145,6 +145,18 @@ const seedDefaultData = async () => {
       logger.info('[DB Seed] Seeded default admin account (admin@verdika.internal)');
     }
 
+    // 3. Seed Demo Merchant User
+    const existingMerchant = await db.get('SELECT id FROM users WHERE email = ?', ['merchant@verdika.internal']);
+    if (!existingMerchant) {
+      const passwordHash = await bcrypt.hash('Merchant123!', 10);
+      const merchantId = crypto.randomUUID();
+      await db.run(
+        `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)`,
+        [merchantId, 'Apex Merchant (Demo)', 'merchant@verdika.internal', passwordHash, 'merchant']
+      );
+      logger.info('[DB Seed] Seeded default merchant account (merchant@verdika.internal)');
+    }
+
     // 3. Seed Sample Applications if empty
     // Sample application seeding removed – schema now matches current spec.
   } catch (err) {

@@ -11,6 +11,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import ApplicationDetail from './pages/ApplicationDetail';
+import NewApplication from './pages/NewApplication';
 
 function App() {
   return (
@@ -30,6 +31,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/apply"
+              element={
+                <ProtectedRoute>
+                  <NewApplication />
                 </ProtectedRoute>
               }
             />

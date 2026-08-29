@@ -27,6 +27,25 @@ export const fetchApplications = async (filters = {}) => {
   return data.applications || [];
 };
 
+export const fetchMyApplications = async (filters = {}) => {
+  const params = new URLSearchParams();
+  if (filters.status && filters.status !== 'ALL') {
+    params.append('status', filters.status);
+  }
+
+  const query = params.toString() ? `?${params.toString()}` : '';
+  const res = await fetch(`${API_BASE_URL}/underwriting/my-applications${query}`, {
+    method: 'GET',
+    credentials: 'include'
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to fetch your applications');
+  }
+  return data.applications || [];
+};
+
 export const fetchApplicationById = async (id) => {
   const res = await fetch(`${API_BASE_URL}/underwriting/applications/${id}`, {
     method: 'GET',
@@ -53,6 +72,21 @@ export const submitApplication = async (data) => {
     throw new Error(result.error || (result.details ? result.details.join(', ') : 'Submission failed'));
   }
   return result;
+};
+
+export const submitApplyApplication = async (payload) => {
+  const res = await fetch(`${API_BASE_URL}/underwriting/apply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to submit application');
+  }
+  return data; // returns { applicationId, decision, applicantMessage }
 };
 
 export const updateApplicationStatus = async (id, status, note = '') => {
@@ -96,4 +130,19 @@ export const generateSyntheticData = async (count = 10) => {
     throw new Error(data.error || 'Failed to generate synthetic dataset');
   }
   return data;
+};
+
+export const submitReviewDecision = async (id, { decision, notes }) => {
+  const res = await fetch(`${API_BASE_URL}/underwriting/applications/${id}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ decision, notes })
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to submit review decision');
+  }
+  return data; // returns { message, application, auditLogs }
 };

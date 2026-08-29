@@ -101,6 +101,7 @@ export default function Signup() {
               onChange={(e) => setRole(e.target.value)}
               className="auth-select"
             >
+              <option value="merchant">Merchant / Loan Applicant</option>
               <option value="underwriter">Underwriter (Standard)</option>
               <option value="risk_officer">Risk Officer (Senior)</option>
               <option value="viewer">Auditor / Viewer (Read-only)</option>

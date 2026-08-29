@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireAuth } from '../middleware/authMiddleware.js';
 import { Application } from '../models/Application.js';
 import { AuditLog } from '../models/AuditLog.js';
+import { User } from '../models/User.js';
 import { agentPipeline } from '../services/agentPipeline.js';
 import { validateApplicationInput } from '../utils/validators.js';
 import { logger } from '../utils/logger.js';
@@ -47,8 +48,19 @@ router.get('/applications/:id', requireAuth, async (req, res) => {
 
     const auditLogs = await AuditLog.findByApplicationId(id);
 
+    let reviewer_name = null;
+    if (application.reviewer_id) {
+      const reviewerUser = await User.findById(application.reviewer_id);
+      if (reviewerUser) {
+        reviewer_name = reviewerUser.name;
+      }
+    }
+
+    const appResponse = JSON.parse(JSON.stringify(application));
+    appResponse.reviewer_name = reviewer_name;
+
     return res.json({
-      application,
+      application: appResponse,
       auditLogs
     });
   } catch (error) {

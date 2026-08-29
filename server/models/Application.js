@@ -35,6 +35,7 @@ export class Application {
     status = 'pending_review',
     reviewer_id = null,
     reviewer_decision = null,
+    reviewer_name = null,
     created_at,
     updated_at
   }) {
@@ -51,6 +52,7 @@ export class Application {
     this.status = status;
     this.reviewer_id = reviewer_id;
     this.reviewer_decision = reviewer_decision;
+    this.reviewer_name = reviewer_name;
     this.created_at = created_at || new Date().toISOString();
     this.updated_at = updated_at || new Date().toISOString();
   }

@@ -90,16 +90,23 @@ export default function Login() {
             <button
               type="button"
               className="demo-btn"
+              onClick={() => handleDemoFill('merchant@verdika.internal', 'Merchant123!')}
+            >
+              🏬 Demo Merchant
+            </button>
+            <button
+              type="button"
+              className="demo-btn"
               onClick={() => handleDemoFill('underwriter@verdika.internal', 'Verdika123!')}
             >
-              👤 Chief Underwriter
+              👤 Underwriter
             </button>
             <button
               type="button"
               className="demo-btn"
               onClick={() => handleDemoFill('admin@verdika.internal', 'Admin123!')}
             >
-              🛡️ Administrator
+              🛡️ Admin
             </button>
           </div>
         </div>

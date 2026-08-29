@@ -60,7 +60,7 @@ export class AdversarialAgent extends BaseAgent {
     // 2. Refund Smoothing: Unnaturally low weekly refund variance (stddev/mean < 0.10)
     const refundCounts = sorted.map(w => w.refund_count || 0);
     const meanRefund = refundCounts.reduce((a, b) => a + b, 0) / numWeeks;
-    if (meanRefund > 0) {
+    if (meanRefund >= 3) {
       const variance = refundCounts.reduce((a, v) => a + Math.pow(v - meanRefund, 2), 0) / numWeeks;
       const stddev = Math.sqrt(variance);
       const cv = stddev / meanRefund;
