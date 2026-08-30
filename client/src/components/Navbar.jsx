@@ -1,13 +1,19 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { gsap } from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+gsap.registerPlugin(ScrollTrigger);
 
 /**
  * Navbar Component
- * Navigation bar with authentication state, user badge, and logout control.
+ * Navigation bar with authentication state, user badge, theme toggle, and logout control.
  */
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -20,7 +26,7 @@ export default function Navbar() {
       <div className="navbar-container">
         <div className="navbar-brand">
           <Link to="/" className="brand-logo">
-            <span className="brand-icon">⚡</span>
+            <img src="/logo.png" alt="Verdika Logo" className="brand-logo-img" />
             <span className="brand-name">Verdika</span>
             <span className="brand-tag">Risk Engine</span>
           </Link>
@@ -34,6 +40,15 @@ export default function Navbar() {
         </div>
 
         <div className="navbar-auth">
+          {/* Theme Toggle Button */}
+          <button
+            onClick={toggleTheme}
+            className="theme-toggle-btn"
+            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
+
           {isAuthenticated ? (
             <div className="user-profile-badge">
               <div className="user-info">

@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-:root {
+:root, [data-theme="dark"] {
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
@@ -44,12 +44,97 @@
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
   --shadow-glow: 0 0 20px rgba(59, 130, 246, 0.15);
+
+  --navbar-bg: rgba(10, 14, 23, 0.78);
+  --navbar-border: rgba(255, 255, 255, 0.08);
+  --navbar-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+/* Peek height for sticky stack */
+:root {
+  --peek-height: 80px;
+}
+
+/* Stack wrapper & section containers */
+.stack-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2.25rem;
+}
+
+.stack-section {
+  position: relative;
+  height: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+  box-sizing: border-box;
+  padding: 2.25rem 1.5rem 2.25rem;
+  width: 100%;
+}
+
+[data-theme="light"] {
+  /* Color Palette - Clean Light Fintech */
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f5f9;
+  --bg-input: #f8fafc;
+
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --text-dim: #64748b;
+
+  --border-subtle: #e2e8f0;
+  --border-card: #cbd5e1;
+  --border-focus: #2563eb;
+
+  --accent-blue: #2563eb;
+  --accent-indigo: #4f46e5;
+  --accent-purple: #7c3aed;
+  --accent-cyan: #0284c7;
+
+  --status-approved: #059669;
+  --status-approved-bg: rgba(5, 150, 105, 0.1);
+  --status-approved-border: rgba(5, 150, 105, 0.3);
+
+  --status-rejected: #dc2626;
+  --status-rejected-bg: rgba(220, 38, 38, 0.1);
+  --status-rejected-border: rgba(220, 38, 38, 0.3);
+
+  --status-review: #d97706;
+  --status-review-bg: rgba(217, 119, 6, 0.1);
+  --status-review-border: rgba(217, 119, 6, 0.3);
+
+  --status-pending: #4f46e5;
+  --status-pending-bg: rgba(79, 70, 229, 0.1);
+  --status-pending-border: rgba(79, 70, 229, 0.3);
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-glow: 0 0 20px rgba(37, 99, 235, 0.12);
+
+  --navbar-bg: rgba(255, 255, 255, 0.82);
+  --navbar-border: rgba(226, 232, 240, 0.8);
+  --navbar-shadow: 0 8px 24px 0 rgba(15, 23, 42, 0.06);
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+html {
+  overflow-x: hidden;
 }
 
 body {
@@ -60,12 +145,15 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
+  overflow-x: hidden;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 #root {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }
 
 a {
@@ -89,4 +177,5 @@ input, select, textarea {
   width: 100%;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }

@@ -17,9 +17,16 @@ const app = express();
 app.use(generalLimiter);
 app.use(
   cors({
-    origin: config.clientOrigin,
-    credentials: true
-  })
+      origin: (origin, callback) => {
+        // Allow requests from any localhost port (e.g., http://localhost:5173) and from undefined (e.g., server-to-server)
+        if (!origin || /^http:\/\/localhost:\d+$/.test(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
+      credentials: true
+    })
 );
 app.use(cookieParser());
 app.use(express.json());

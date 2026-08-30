@@ -1,7 +1,9 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
+import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
 import './App.css';
 
@@ -15,45 +17,48 @@ import NewApplication from './pages/NewApplication';
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <Navbar />
-        <main className="main-content">
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={<Landing />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/signup" element={<Signup />} />
+    <ThemeProvider>
+      <AuthProvider>
+        <Router>
+          <Navbar />
+          <main className="main-content">
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={<Landing />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
 
-            {/* Protected Routes */}
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/apply"
-              element={
-                <ProtectedRoute>
-                  <NewApplication />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/application/:id"
-              element={
-                <ProtectedRoute>
-                  <ApplicationDetail />
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-        </main>
-      </Router>
-    </AuthProvider>
+              {/* Protected Routes */}
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/apply"
+                element={
+                  <ProtectedRoute>
+                    <NewApplication />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/application/:id"
+                element={
+                  <ProtectedRoute>
+                    <ApplicationDetail />
+                  </ProtectedRoute>
+                }
+              />
+            </Routes>
+          </main>
+          <Footer />
+        </Router>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 
