@@ -441,6 +441,19 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
   doc.setFontSize(10);
   doc.setTextColor(30, 41, 59);
   doc.text('3. Quantitative Risk Assessment & Reason Codes', marginX, y);
+
+  // Data Source Tag in Section Header
+  doc.setFontSize(7.5);
+  if (merchantData.data_source === 'Real Bank Statement') {
+    doc.setTextColor(5, 150, 105);
+    doc.text('✓ DATA SOURCE: REAL BANK STATEMENT', pageWidth - marginX, y, { align: 'right' });
+  } else {
+    doc.setTextColor(100, 116, 139);
+    doc.text('ℹ️ DATA SOURCE: SYNTHETIC/SAMPLE DATA', pageWidth - marginX, y, { align: 'right' });
+  }
+
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.4);
   doc.line(marginX, y + 2, pageWidth - marginX, y + 2);
   y += 5;
 

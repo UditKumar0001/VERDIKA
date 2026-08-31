@@ -163,8 +163,16 @@ router.post('/apply-public/:companySlug', async (req, res) => {
 
     const status = (pipelineResult.decision === 'auto_approve' || pipelineResult.decision === 'auto_reject') ? 'closed' : 'pending_review';
 
+    const enrichedMerchantData = {
+      ...createdApp.merchant_data,
+      data_source: pipelineResult.data_source || 'Synthetic/Sample Data',
+      data_source_flag: pipelineResult.data_source_flag || 'SYNTHETIC_FALLBACK',
+      extraction_notes: pipelineResult.extraction_notes || '',
+      transaction_history: pipelineResult.transaction_history || createdApp.merchant_data.transaction_history
+    };
+
     const evaluation = {
-      merchant_data: createdApp.merchant_data,
+      merchant_data: enrichedMerchantData,
       features: pipelineResult.features,
       risk_result: pipelineResult.risk_result,
       adversarial_result: pipelineResult.adversarial_result,
@@ -176,12 +184,14 @@ router.post('/apply-public/:companySlug', async (req, res) => {
     };
     const updatedApp = await Application.updateEvaluation(createdApp.id, evaluation);
 
-    logger.info(`[Public Application Ingested] ID: ${updatedApp.id} for Company: ${company.name} (${company.slug})`);
+    logger.info(`[Public Application Ingested] ID: ${updatedApp.id} for Company: ${company.name} (${company.slug}) [Data Source: ${pipelineResult.data_source}]`);
 
     return res.status(201).json({
       applicationId: updatedApp.id,
       decision: updatedApp.decision,
       applicantMessage: updatedApp.applicant_message,
+      data_source: pipelineResult.data_source,
+      extraction_notes: pipelineResult.extraction_notes,
       company: {
         id: company.id,
         name: company.name,
@@ -237,8 +247,16 @@ router.post('/apply', requireAuth, async (req, res) => {
 
     const status = (pipelineResult.decision === 'auto_approve' || pipelineResult.decision === 'auto_reject') ? 'closed' : 'pending_review';
 
+    const enrichedMerchantData = {
+      ...createdApp.merchant_data,
+      data_source: pipelineResult.data_source || 'Synthetic/Sample Data',
+      data_source_flag: pipelineResult.data_source_flag || 'SYNTHETIC_FALLBACK',
+      extraction_notes: pipelineResult.extraction_notes || '',
+      transaction_history: pipelineResult.transaction_history || createdApp.merchant_data.transaction_history
+    };
+
     const evaluation = {
-      merchant_data: createdApp.merchant_data,
+      merchant_data: enrichedMerchantData,
       features: pipelineResult.features,
       risk_result: pipelineResult.risk_result,
       adversarial_result: pipelineResult.adversarial_result,
@@ -253,7 +271,9 @@ router.post('/apply', requireAuth, async (req, res) => {
     return res.status(201).json({
       applicationId: updatedApp.id,
       decision: updatedApp.decision,
-      applicantMessage: updatedApp.applicant_message
+      applicantMessage: updatedApp.applicant_message,
+      data_source: pipelineResult.data_source,
+      extraction_notes: pipelineResult.extraction_notes
     });
   } catch (error) {
     logger.error('[Underwriting Apply Error]:', error);

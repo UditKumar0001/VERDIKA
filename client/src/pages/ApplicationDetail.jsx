@@ -174,11 +174,22 @@ export default function ApplicationDetail() {
         <div className="detail-main-col">
           {/* Risk Summary Card */}
           <div className="dashboard-card">
-            <div className="card-toolbar">
-              <h2 className="card-title">🛡️ Risk Engine Evaluation Summary</h2>
-              {confidence !== null && (
-                <span className="conf-pill">Confidence: {(confidence * 100).toFixed(0)}%</span>
-              )}
+            <div className="card-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <h2 className="card-title" style={{ margin: 0 }}>🛡️ Risk Engine Evaluation Summary</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {merchantData.data_source === 'Real Bank Statement' ? (
+                  <span className="badge badge-approved" style={{ background: 'rgba(16, 185, 129, 0.18)', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.4)', fontSize: '0.75rem' }}>
+                    ✓ Data Source: Real Bank Statement
+                  </span>
+                ) : (
+                  <span className="badge" style={{ background: 'rgba(100, 116, 139, 0.2)', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                    ℹ️ Data Source: Synthetic/Sample Data
+                  </span>
+                )}
+                {confidence !== null && (
+                  <span className="conf-pill">Confidence: {(confidence * 100).toFixed(0)}%</span>
+                )}
+              </div>
             </div>
 
             {/* Risk Gauge Bar */}
@@ -196,6 +207,12 @@ export default function ApplicationDetail() {
                     style={{ width: `${Math.min(100, Math.max(4, riskScore * 100))}%` }}
                   ></div>
                 </div>
+                {merchantData.extraction_notes && (
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', marginTop: '0.45rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span>📄</span>
+                    <span>{merchantData.extraction_notes}</span>
+                  </div>
+                )}
               </div>
             ) : (
               <p className="text-muted">No numerical risk score computed.</p>

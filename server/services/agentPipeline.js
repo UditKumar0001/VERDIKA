@@ -4,6 +4,7 @@ import { RiskAgent } from '../agents/RiskAgent.js';
 import { AdversarialAgent } from '../agents/AdversarialAgent.js';
 import { DecisionRouter } from '../agents/DecisionRouter.js';
 import { ExplainerAgent } from '../agents/ExplainerAgent.js';
+import { parseBankStatementTransactions, SYNTHETIC_BASELINE_TRANSACTIONS } from './bankStatementParser.js';
 import { logger } from '../utils/logger.js';
 
 /**
@@ -28,6 +29,23 @@ export class AgentPipeline {
   async execute(applicationData) {
     const startTime = Date.now();
     logger.info(`Starting underwriting pipeline for applicant: ${applicationData.applicantName || applicationData.business_name || 'Unknown'}`);
+
+    // 0. Extract Real Transactions from Bank Statement (if available) with safe fallback
+    const parsedStatement = await parseBankStatementTransactions(applicationData.documents?.bank_statement || applicationData);
+    
+    if (parsedStatement && parsedStatement.dataSourceFlag === 'REAL_STATEMENT' && Array.isArray(parsedStatement.transactions) && parsedStatement.transactions.length > 0) {
+      applicationData.transaction_history = parsedStatement.transactions;
+      applicationData.data_source = 'Real Bank Statement';
+      applicationData.data_source_flag = 'REAL_STATEMENT';
+      applicationData.extraction_notes = parsedStatement.extractionNotes;
+    } else {
+      if (!Array.isArray(applicationData.transaction_history) || applicationData.transaction_history.length === 0) {
+        applicationData.transaction_history = SYNTHETIC_BASELINE_TRANSACTIONS;
+      }
+      applicationData.data_source = 'Synthetic/Sample Data';
+      applicationData.data_source_flag = 'SYNTHETIC_FALLBACK';
+      applicationData.extraction_notes = parsedStatement.extractionNotes || 'Using synthetic dataset for underwriting evaluation';
+    }
 
     const auditLogs = [];
 
@@ -55,7 +73,7 @@ export class AgentPipeline {
     const enriched = await runAgentStep(
       this.dataAgent,
       applicationData,
-      (out) => `Data enriched and verified for ${applicationData.applicantName || applicationData.business_name || 'Applicant'}`
+      (out) => `Data enriched and verified for ${applicationData.applicantName || applicationData.business_name || 'Applicant'} (${applicationData.data_source})`
     );
 
     // 2. Document & KYC Verification Agent
@@ -140,6 +158,10 @@ export class AgentPipeline {
       routing_reason: decision.routingReason || decision.routeReason || null,
       applicant_message: explanation.applicantMessage || null,
       underwriter_summary: explanation.underwriterSummary || null,
+      data_source: applicationData.data_source || 'Synthetic/Sample Data',
+      data_source_flag: applicationData.data_source_flag || 'SYNTHETIC_FALLBACK',
+      extraction_notes: applicationData.extraction_notes || '',
+      transaction_history: applicationData.transaction_history,
       auditLogs
     };
     return result;
