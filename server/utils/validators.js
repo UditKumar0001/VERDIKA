@@ -11,10 +11,11 @@ export const validateEmail = (email) => {
 
 export const validateSignupInput = (data = {}) => {
   const errors = [];
-  const { name, email, password, role } = data;
+  const { name, company_name, email, password, role } = data;
+  const primaryName = name || company_name;
 
-  if (!name || typeof name !== 'string' || name.trim().length < 2) {
-    errors.push('Full name must be at least 2 characters.');
+  if (!primaryName || typeof primaryName !== 'string' || primaryName.trim().length < 2) {
+    errors.push('Full name or Company name must be at least 2 characters.');
   }
 
   if (!validateEmail(email)) {
@@ -25,8 +26,8 @@ export const validateSignupInput = (data = {}) => {
     errors.push('Password must be at least 8 characters.');
   }
 
-  if (role && !['underwriter', 'admin', 'risk_officer', 'viewer', 'merchant'].includes(role)) {
-    errors.push('Role must be one of: merchant, underwriter, admin, risk_officer, viewer.');
+  if (role && !['underwriter', 'admin', 'risk_officer', 'viewer', 'merchant', 'finance_company'].includes(role)) {
+    errors.push('Role must be one of: merchant, underwriter, admin, risk_officer, viewer, finance_company.');
   }
 
   return {

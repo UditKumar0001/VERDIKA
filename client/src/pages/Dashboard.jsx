@@ -4,11 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import { fetchMyApplications, fetchApplications } from '../api/applicationApi';
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, company } = useAuth();
   const isMerchant = !user?.role || user.role === 'merchant';
 
   if (!isMerchant) {
-    return <ReviewerDashboard user={user} />;
+    return <ReviewerDashboard user={user} company={company} />;
   }
 
   return <MerchantDashboard user={user} />;
@@ -17,13 +17,21 @@ export default function Dashboard() {
 /**
  * Reviewer Queue Dashboard (For roles: underwriter, admin, risk_officer)
  */
-function ReviewerDashboard({ user }) {
+function ReviewerDashboard({ user, company }) {
   const navigate = useNavigate();
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [statusFilter, setStatusFilter] = useState('pending_review'); // Default actionable queue
   const [searchQuery, setSearchQuery] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyLink = () => {
+    const link = company?.apply_link || `${window.location.origin}/apply/${company?.slug || 'verdika-capital'}`;
+    navigator.clipboard.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
   
   // Sorting state
   const [sortField, setSortField] = useState('created_at');
@@ -144,6 +152,79 @@ function ReviewerDashboard({ user }) {
           </p>
         </div>
       </div>
+
+      {/* Finance Company Multi-Tenant Public Link Banner */}
+      {company && (
+        <div
+          className="company-link-banner"
+          style={{
+            background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%)',
+            border: '1px solid var(--accent-blue)',
+            borderRadius: '12px',
+            padding: '1.25rem 1.5rem',
+            marginBottom: '1.75rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '1rem'
+          }}
+        >
+          <div style={{ flex: '1 1 320px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+              <span style={{ fontSize: '1.1rem' }}>🏦</span>
+              <span style={{ fontWeight: '800', color: 'var(--text-main)', fontSize: '1.05rem' }}>
+                {company.name}
+              </span>
+              <span className="badge badge-approved" style={{ fontSize: '0.65rem', textTransform: 'uppercase' }}>
+                Private Tenant
+              </span>
+            </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: 0, lineHeight: 1.4 }}>
+              Share this dedicated link with merchant applicants. All submissions are automatically tagged and isolated to your institution's review queue.
+            </p>
+            <div
+              style={{
+                marginTop: '0.65rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                background: 'rgba(0, 0, 0, 0.45)',
+                border: '1px solid var(--border-card)',
+                borderRadius: '6px',
+                padding: '0.35rem 0.75rem',
+                gap: '0.6rem',
+                maxWidth: '100%',
+                overflow: 'hidden'
+              }}
+            >
+              <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 600 }}>Public Merchant Link:</span>
+              <code style={{ color: 'var(--accent-cyan)', fontSize: '0.82rem', wordBreak: 'break-all' }}>
+                {company.apply_link || `${window.location.origin}/apply/${company.slug}`}
+              </code>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={handleCopyLink}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', fontSize: '0.85rem' }}
+            >
+              <span>{copied ? '✓ Copied to Clipboard!' : '📋 Copy Link'}</span>
+            </button>
+            <a
+              href={`/apply/${company.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-secondary"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', fontSize: '0.85rem', textDecoration: 'none' }}
+            >
+              <span>↗ Open Gateway</span>
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Metrics Row */}
       <div className="stats-row">

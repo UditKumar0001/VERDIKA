@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { submitApplyApplication } from '../api/applicationApi';
+import { submitPublicApplication } from '../api/companyApi';
 
 // Pre-packaged realistic sample datasets for instant demo testing
 const SAMPLE_PRESETS = {
@@ -225,7 +226,7 @@ const maskAccountNumber = (accNo) => {
   return 'X'.repeat(maskedLength) + clean.slice(-4);
 };
 
-export default function NewApplication() {
+export default function NewApplication({ publicCompany = null }) {
   const navigate = useNavigate();
 
   // Wizard Step: 1 = Business Info, 2 = Bank Details, 3 = Document Uploads, 4 = Review & Submit
@@ -628,6 +629,8 @@ export default function NewApplication() {
             size: documents.gst_certificate.size,
             sizeFormatted: documents.gst_certificate.sizeFormatted,
             type: documents.gst_certificate.type,
+            width: documents.gst_certificate.width || 1200,
+            height: documents.gst_certificate.height || 800,
             verified: true
           } : null,
           pan_card: documents.pan_card ? {
@@ -635,6 +638,8 @@ export default function NewApplication() {
             size: documents.pan_card.size,
             sizeFormatted: documents.pan_card.sizeFormatted,
             type: documents.pan_card.type,
+            width: documents.pan_card.width || 1000,
+            height: documents.pan_card.height || 630,
             verified: true
           } : null,
           bank_statement: documents.bank_statement ? {
@@ -642,12 +647,18 @@ export default function NewApplication() {
             size: documents.bank_statement.size,
             sizeFormatted: documents.bank_statement.sizeFormatted,
             type: documents.bank_statement.type,
+            pageCount: documents.bank_statement.pageCount || 6,
             verified: true
           } : null
         }
       };
 
-      const res = await submitApplyApplication(payload);
+      let res;
+      if (publicCompany && publicCompany.slug) {
+        res = await submitPublicApplication(publicCompany.slug, payload);
+      } else {
+        res = await submitApplyApplication(payload);
+      }
       setResult(res);
     } catch (err) {
       setError(err.message || 'Submission failed.');

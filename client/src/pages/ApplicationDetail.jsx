@@ -297,61 +297,86 @@ export default function ApplicationDetail() {
             </div>
           )}
 
-          {/* Verified KYC Documents Card (if available) */}
-          {merchantData.documents && (
-            <div className="dashboard-card">
-              <h2 className="card-title" style={{ marginBottom: '1rem' }}>
-                📁 Verified Merchant Documentation
-              </h2>
-              <div className="doc-checklist">
-                {merchantData.documents.gst_certificate && (
-                  <div className="checklist-item">
-                    <div className="checklist-status-icon"><span className="check-success">✓</span></div>
-                    <div className="checklist-info">
-                      <div className="checklist-doc-title">
-                        GST Registration Certificate
-                        <span className="doc-verified-pill">Verified</span>
-                      </div>
-                      <div className="checklist-doc-sub">
-                        {merchantData.documents.gst_certificate.name || 'GST_Certificate.pdf'}
-                        {merchantData.documents.gst_certificate.sizeFormatted && ` (${merchantData.documents.gst_certificate.sizeFormatted})`}
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {merchantData.documents.pan_card && (
-                  <div className="checklist-item">
-                    <div className="checklist-status-icon"><span className="check-success">✓</span></div>
-                    <div className="checklist-info">
-                      <div className="checklist-doc-title">
-                        Company / Signatory PAN Card
-                        <span className="doc-verified-pill">Verified</span>
-                      </div>
-                      <div className="checklist-doc-sub">
-                        {merchantData.documents.pan_card.name || 'PAN_Card.png'}
-                        {merchantData.documents.pan_card.sizeFormatted && ` (${merchantData.documents.pan_card.sizeFormatted})`}
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {merchantData.documents.bank_statement && (
-                  <div className="checklist-item">
-                    <div className="checklist-status-icon"><span className="check-success">✓</span></div>
-                    <div className="checklist-info">
-                      <div className="checklist-doc-title">
-                        Bank Statement (Last 6 Months)
-                        <span className="doc-verified-pill">Verified</span>
-                      </div>
-                      <div className="checklist-doc-sub">
-                        {merchantData.documents.bank_statement.name || 'Bank_Statement.pdf'}
-                        {merchantData.documents.bank_statement.sizeFormatted && ` (${merchantData.documents.bank_statement.sizeFormatted})`}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+          {/* Verified KYC Documents & Quality Assessment Card */}
+          <div className="dashboard-card">
+            <div className="card-toolbar" style={{ marginBottom: '1rem' }}>
+              <h2 className="card-title">📁 KYC Document Verification & Quality Audit</h2>
             </div>
-          )}
+            <div className="doc-checklist">
+              {[
+                { key: 'gst_certificate', title: 'GST Registration Certificate', doc: merchantData.documents?.gst_certificate, defaultExt: 'PDF/Image' },
+                { key: 'pan_card', title: 'Company / Signatory PAN Card', doc: merchantData.documents?.pan_card, defaultExt: 'Image/PDF' },
+                { key: 'bank_statement', title: 'Bank Statement (Last 6 Months)', doc: merchantData.documents?.bank_statement, defaultExt: 'PDF' }
+              ].map(({ key, title, doc }) => {
+                let status = 'Missing';
+                let badgeClass = 'badge-doc-missing';
+                let iconClass = 'check-optional';
+                let iconSymbol = '✕';
+                let note = 'Document not uploaded';
+
+                if (doc && (doc.name || doc.verified || doc.isUploaded)) {
+                  const sizeBytes = doc.size !== undefined ? Number(doc.size) : null;
+                  const width = doc.width !== undefined ? Number(doc.width) : null;
+                  const isCorrupted = doc.isCorrupted === true || doc.isReadable === false;
+                  const isImage = (doc.type && doc.type.startsWith('image/')) || /\.(jpg|jpeg|png)$/i.test(doc.name || '');
+                  const isPdf = (doc.type && doc.type === 'application/pdf') || /\.pdf$/i.test(doc.name || '');
+
+                  if (isCorrupted) {
+                    status = 'Needs Re-upload';
+                    badgeClass = 'badge-doc-reupload';
+                    iconClass = 'check-optional';
+                    iconSymbol = '⚠️';
+                    note = 'File appears corrupted or unreadable';
+                  } else if (isImage && width !== null && width < 600) {
+                    status = 'Needs Re-upload';
+                    badgeClass = 'badge-doc-reupload';
+                    iconClass = 'check-optional';
+                    iconSymbol = '⚠️';
+                    note = `Low Resolution (${width}px width) — scan may be illegible (min 600px)`;
+                  } else if (isImage && sizeBytes !== null && sizeBytes > 0 && sizeBytes < 20 * 1024) {
+                    status = 'Needs Re-upload';
+                    badgeClass = 'badge-doc-reupload';
+                    iconClass = 'check-optional';
+                    iconSymbol = '⚠️';
+                    note = `Possible quality issue — file size unusually small (${(sizeBytes / 1024).toFixed(1)}KB < 20KB)`;
+                  } else if (isPdf && doc.pageCount !== undefined && Number(doc.pageCount) === 0) {
+                    status = 'Needs Re-upload';
+                    badgeClass = 'badge-doc-reupload';
+                    iconClass = 'check-optional';
+                    iconSymbol = '⚠️';
+                    note = 'Unreadable or corrupted PDF (0 pages)';
+                  } else if (isPdf && sizeBytes !== null && sizeBytes > 0 && sizeBytes < 10 * 1024) {
+                    status = 'Needs Re-upload';
+                    badgeClass = 'badge-doc-reupload';
+                    iconClass = 'check-optional';
+                    iconSymbol = '⚠️';
+                    note = `PDF size unusually small (${(sizeBytes / 1024).toFixed(1)}KB < 10KB)`;
+                  } else {
+                    status = 'Clear';
+                    badgeClass = 'badge-doc-clear';
+                    iconClass = 'check-success';
+                    iconSymbol = '✓';
+                    note = doc.name ? `${doc.name}${doc.sizeFormatted ? ` (${doc.sizeFormatted})` : ''}` : 'Verified & Readable';
+                  }
+                }
+
+                return (
+                  <div key={key} className="checklist-item">
+                    <div className="checklist-status-icon">
+                      <span className={iconClass}>{iconSymbol}</span>
+                    </div>
+                    <div className="checklist-info">
+                      <div className="checklist-doc-title">
+                        {title}
+                        <span className={badgeClass}>{status}</span>
+                      </div>
+                      <div className="checklist-doc-sub">{note}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Underwriter Action Panel OR Closed Decision Summary */}
           {isPending ? (

@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/env.js';
 import { User } from '../models/User.js';
+import { Company } from '../models/Company.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
 import { validateSignupInput, validateLoginInput } from '../utils/validators.js';
@@ -10,10 +11,12 @@ import { logger } from '../utils/logger.js';
 
 const router = Router();
 
-const generateToken = (user) => {
+const generateToken = (user, company = null) => {
   return jwt.sign(
     {
       id: user.id,
+      company_id: user.company_id || (company ? company.id : null),
+      companyId: user.company_id || (company ? company.id : null),
       email: user.email,
       name: user.name,
       role: user.role
@@ -34,8 +37,7 @@ const setAuthCookie = (res, token) => {
 
 /**
  * POST /api/auth/signup
- * Validates email and min 8-char password, hashes password with bcrypt (10 rounds),
- * inserts user into DB, and returns user info with httpOnly JWT cookie.
+ * Supports both Merchant applicants and Finance Company multi-tenant registrations.
  */
 router.post('/signup', authLimiter, async (req, res) => {
   try {
@@ -44,32 +46,54 @@ router.post('/signup', authLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Validation failed', details: errors });
     }
 
-    const { name, email, password, role } = req.body;
+    const { name, company_name, email, password, role } = req.body;
 
     const existingUser = await User.findByEmail(email);
     if (existingUser) {
       return res.status(409).json({ error: 'An account with this email address already exists.' });
     }
 
+    let company = null;
+    let company_id = null;
+    const isFinanceCompany = role === 'finance_company' || Boolean(company_name);
+
+    if (isFinanceCompany) {
+      const orgName = company_name || name || 'Finance Partner';
+      company = await Company.create({
+        name: orgName,
+        email
+      });
+      company_id = company.id;
+    }
+
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
     const user = await User.create({
-      name,
+      name: name || company_name || 'User',
+      company_id,
       email,
       passwordHash,
-      role: role || 'underwriter'
+      role: isFinanceCompany ? 'underwriter' : (role || 'merchant')
     });
 
-    const token = generateToken(user);
+    const token = generateToken(user, company);
     setAuthCookie(res, token);
 
-    logger.info(`[Auth] User registered: ${user.email} (Role: ${user.role})`);
+    logger.info(`[Auth] User registered: ${user.email} (Role: ${user.role}${company ? `, Company: ${company.name} [${company.slug}]` : ''})`);
 
-    // Return sanitized user object without token or password in response body
+    const sanitizedUser = user.sanitize();
+    const appOrigin = req.headers.origin || 'http://localhost:5173';
+
     return res.status(201).json({
-      message: 'Account created successfully',
-      user: user.sanitize()
+      message: isFinanceCompany ? 'Finance Company registered successfully' : 'Account created successfully',
+      user: sanitizedUser,
+      company: company ? {
+        id: company.id,
+        name: company.name,
+        slug: company.slug,
+        apply_link: `${appOrigin}/apply/${company.slug}`
+      } : null
     });
   } catch (error) {
     logger.error('[Auth Signup Error]:', error);
@@ -79,8 +103,7 @@ router.post('/signup', authLimiter, async (req, res) => {
 
 /**
  * POST /api/auth/login
- * Authenticates user credentials and sets httpOnly session cookie.
- * Returns generic "Invalid email or password" on failure.
+ * Authenticates user credentials and returns session + company info.
  */
 router.post('/login', authLimiter, async (req, res) => {
   try {
@@ -93,25 +116,35 @@ router.post('/login', authLimiter, async (req, res) => {
 
     const user = await User.findByEmail(email);
     if (!user) {
-      // Generic error - never reveal whether the email exists or not
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
-      // Generic error - never reveal whether the email exists or not
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const token = generateToken(user);
+    let company = null;
+    if (user.company_id) {
+      company = await Company.findById(user.company_id);
+    }
+
+    const token = generateToken(user, company);
     setAuthCookie(res, token);
 
     logger.info(`[Auth] User logged in: ${user.email}`);
 
-    // Return sanitized user object without token in response body
+    const appOrigin = req.headers.origin || 'http://localhost:5173';
+
     return res.json({
       message: 'Login successful',
-      user: user.sanitize()
+      user: user.sanitize(),
+      company: company ? {
+        id: company.id,
+        name: company.name,
+        slug: company.slug,
+        apply_link: `${appOrigin}/apply/${company.slug}`
+      } : null
     });
   } catch (error) {
     logger.error('[Auth Login Error]:', error);
@@ -134,7 +167,7 @@ router.post('/logout', (req, res) => {
 
 /**
  * GET /api/auth/me
- * Protected route, verifies JWT from cookie, returns current user's info minus password hash.
+ * Protected route, returns current user's profile and company details.
  */
 router.get('/me', requireAuth, async (req, res) => {
   try {
@@ -142,7 +175,23 @@ router.get('/me', requireAuth, async (req, res) => {
     if (!user) {
       return res.status(404).json({ error: 'User profile not found' });
     }
-    return res.json({ user: user.sanitize() });
+
+    let company = null;
+    if (user.company_id) {
+      company = await Company.findById(user.company_id);
+    }
+
+    const appOrigin = req.headers.origin || 'http://localhost:5173';
+
+    return res.json({
+      user: user.sanitize(),
+      company: company ? {
+        id: company.id,
+        name: company.name,
+        slug: company.slug,
+        apply_link: `${appOrigin}/apply/${company.slug}`
+      } : null
+    });
   } catch (error) {
     logger.error('[Auth Me Error]:', error);
     return res.status(500).json({ error: 'Failed to retrieve session profile.' });

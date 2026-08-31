@@ -4,9 +4,11 @@ import { useAuth } from '../context/AuthContext';
 
 /**
  * Signup Page Component
- * Handles registration for underwriters, risk officers, and auditors.
+ * Handles registration for Finance Companies (Lenders/NBFCs), Merchants, and Underwriters.
  */
 export default function Signup() {
+  const [accountType, setAccountType] = useState('finance_company'); // 'finance_company' | 'merchant' | 'underwriter'
+  const [companyName, setCompanyName] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,7 +24,9 @@ export default function Signup() {
     e.preventDefault();
     setError('');
 
-    if (!name.trim() || !email.trim() || !password) {
+    const primaryName = accountType === 'finance_company' ? companyName : name;
+
+    if (!primaryName.trim() || !email.trim() || !password) {
       setError('Please fill in all required fields.');
       return;
     }
@@ -34,8 +38,23 @@ export default function Signup() {
 
     setIsSubmitting(true);
     try {
-      await signup({ name, email, password, role });
-      navigate('/dashboard');
+      const payload = {
+        name: primaryName.trim(),
+        company_name: accountType === 'finance_company' ? companyName.trim() : null,
+        email: email.trim(),
+        password,
+        role: accountType === 'finance_company' ? 'finance_company' : (accountType === 'merchant' ? 'merchant' : role)
+      };
+
+      const res = await signup(payload);
+
+      if (accountType === 'finance_company') {
+        navigate('/dashboard');
+      } else if (accountType === 'merchant') {
+        navigate('/apply');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {
@@ -45,36 +64,119 @@ export default function Signup() {
 
   return (
     <div className="auth-page-container">
-      <div className="auth-card">
+      <div className="auth-card" style={{ maxWidth: '480px' }}>
         <div className="auth-header">
           <img src="/logo.png" alt="Verdika Logo" className="auth-logo-img" />
-          <div className="auth-badge">Onboarding</div>
+          <div className="auth-badge">Multi-Tenant Onboarding</div>
           <h2>Create Verdika Account</h2>
-          <p className="auth-subtitle">Join the multi-agent AI risk evaluation system</p>
+          <p className="auth-subtitle">
+            {accountType === 'finance_company'
+              ? 'Register your finance institution & generate dedicated merchant application links'
+              : 'Join the multi-agent AI risk evaluation system'}
+          </p>
+        </div>
+
+        {/* Account Type Selection Tabs */}
+        <div className="account-type-tabs" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
+          <button
+            type="button"
+            className={`account-tab-btn ${accountType === 'finance_company' ? 'active' : ''}`}
+            onClick={() => setAccountType('finance_company')}
+            style={{
+              flex: 1,
+              padding: '0.6rem 0.4rem',
+              fontSize: '0.8rem',
+              fontWeight: '700',
+              borderRadius: '6px',
+              border: accountType === 'finance_company' ? '1px solid var(--accent-blue)' : '1px solid var(--border-card)',
+              background: accountType === 'finance_company' ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-input)',
+              color: accountType === 'finance_company' ? 'var(--accent-blue)' : 'var(--text-muted)',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            🏦 Finance Company
+          </button>
+          <button
+            type="button"
+            className={`account-tab-btn ${accountType === 'merchant' ? 'active' : ''}`}
+            onClick={() => setAccountType('merchant')}
+            style={{
+              flex: 1,
+              padding: '0.6rem 0.4rem',
+              fontSize: '0.8rem',
+              fontWeight: '700',
+              borderRadius: '6px',
+              border: accountType === 'merchant' ? '1px solid var(--accent-blue)' : '1px solid var(--border-card)',
+              background: accountType === 'merchant' ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-input)',
+              color: accountType === 'merchant' ? 'var(--accent-blue)' : 'var(--text-muted)',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            🛍️ Merchant Applicant
+          </button>
+          <button
+            type="button"
+            className={`account-tab-btn ${accountType === 'underwriter' ? 'active' : ''}`}
+            onClick={() => setAccountType('underwriter')}
+            style={{
+              flex: 1,
+              padding: '0.6rem 0.4rem',
+              fontSize: '0.8rem',
+              fontWeight: '700',
+              borderRadius: '6px',
+              border: accountType === 'underwriter' ? '1px solid var(--accent-blue)' : '1px solid var(--border-card)',
+              background: accountType === 'underwriter' ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-input)',
+              color: accountType === 'underwriter' ? 'var(--accent-blue)' : 'var(--text-muted)',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            🛡️ Underwriter
+          </button>
         </div>
 
         {error && <div className="auth-alert-error">{error}</div>}
 
         <form onSubmit={handleSubmit} className="auth-form">
-          <div className="form-group">
-            <label htmlFor="name">Full Name</label>
-            <input
-              id="name"
-              type="text"
-              placeholder="Alex Morgan"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              autoComplete="name"
-            />
-          </div>
+          {accountType === 'finance_company' ? (
+            <div className="form-group">
+              <label htmlFor="companyName">Finance Company / NBFC Name</label>
+              <input
+                id="companyName"
+                type="text"
+                placeholder="e.g. HDFC Finance, BluePeak Capital"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                required
+                autoComplete="organization"
+              />
+              <span className="field-hint" style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>
+                A custom public link (e.g. /apply/{companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'your-company'}) will be auto-generated.
+              </span>
+            </div>
+          ) : (
+            <div className="form-group">
+              <label htmlFor="name">Full Name</label>
+              <input
+                id="name"
+                type="text"
+                placeholder="Alex Morgan"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                autoComplete="name"
+              />
+            </div>
+          )}
 
           <div className="form-group">
             <label htmlFor="email">Work Email</label>
             <input
               id="email"
               type="email"
-              placeholder="alex.m@verdika.internal"
+              placeholder={accountType === 'finance_company' ? 'underwriting@yourcompany.com' : 'user@example.com'}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -116,23 +218,26 @@ export default function Signup() {
             </div>
           </div>
 
-          <div className="form-group">
-            <label htmlFor="role">Platform Role</label>
-            <select
-              id="role"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="auth-select"
-            >
-              <option value="merchant">Merchant / Loan Applicant</option>
-              <option value="underwriter">Underwriter (Standard)</option>
-              <option value="risk_officer">Risk Officer (Senior)</option>
-              <option value="viewer">Auditor / Viewer (Read-only)</option>
-            </select>
-          </div>
+          {accountType === 'underwriter' && (
+            <div className="form-group">
+              <label htmlFor="role">Platform Role</label>
+              <select
+                id="role"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className="auth-select"
+              >
+                <option value="underwriter">Underwriter (Standard)</option>
+                <option value="risk_officer">Risk Officer (Senior)</option>
+                <option value="viewer">Auditor / Viewer (Read-only)</option>
+              </select>
+            </div>
+          )}
 
           <button type="submit" className="auth-submit-btn" disabled={isSubmitting}>
-            {isSubmitting ? 'Creating Account...' : 'Create Account'}
+            {isSubmitting
+              ? 'Setting up Account...'
+              : (accountType === 'finance_company' ? 'Register Finance Company' : 'Create Account')}
           </button>
         </form>
 

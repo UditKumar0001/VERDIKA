@@ -1749,6 +1749,59 @@
   border: 1px solid var(--status-approved-border);
 }
 
+/* Document Quality Badges (Clear / Needs Re-upload / Missing) */
+.badge-doc-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0.15rem 0.55rem;
+  background: var(--status-approved-bg);
+  color: var(--status-approved);
+  border: 1px solid var(--status-approved-border);
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+}
+
+.badge-doc-reupload {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0.15rem 0.55rem;
+  background: var(--status-review-bg);
+  color: var(--status-review);
+  border: 1px solid var(--status-review-border);
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+}
+
+.badge-doc-missing {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0.15rem 0.55rem;
+  background: var(--status-rejected-bg);
+  color: var(--status-rejected);
+  border: 1px solid var(--status-rejected-border);
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+}
+
+.doc-quality-subtext {
+  font-size: 0.78rem;
+  color: var(--status-review);
+  margin-top: 0.2rem;
+  font-weight: 500;
+}
+
 .checklist-doc-sub {
   font-size: 0.75rem;
   color: var(--text-dim);

@@ -3,11 +3,12 @@ import { db } from '../config/db.js';
 
 /**
  * User Model
- * Represents system users (underwriters, risk officers, administrators).
+ * Represents system users (underwriters, risk officers, finance company admins, merchants).
  */
 export class User {
-  constructor({ id, name, email, passwordHash, role, createdAt }) {
+  constructor({ id, company_id = null, name, email, passwordHash, role, createdAt }) {
     this.id = id;
+    this.company_id = company_id;
     this.name = name || 'User';
     this.email = email;
     this.passwordHash = passwordHash;
@@ -21,6 +22,7 @@ export class User {
   sanitize() {
     return {
       id: this.id,
+      company_id: this.company_id,
       name: this.name,
       email: this.email,
       role: this.role,
@@ -32,6 +34,7 @@ export class User {
     if (!row) return null;
     return new User({
       id: row.id,
+      company_id: row.company_id || null,
       name: row.name,
       email: row.email,
       passwordHash: row.password_hash,
@@ -52,19 +55,19 @@ export class User {
     return User.fromRow(row);
   }
 
-  static async create({ name, email, passwordHash, role = 'underwriter' }) {
+  static async create({ name, email, passwordHash, role = 'underwriter', company_id = null }) {
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
     await db.run(
-      `INSERT INTO users (id, name, email, password_hash, role, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, name || 'User', email.trim().toLowerCase(), passwordHash, role, createdAt]
+      `INSERT INTO users (id, company_id, name, email, password_hash, role, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, company_id, name || 'User', email.trim().toLowerCase(), passwordHash, role, createdAt]
     );
-    return new User({ id, name, email: email.trim().toLowerCase(), passwordHash, role, createdAt });
+    return new User({ id, company_id, name, email: email.trim().toLowerCase(), passwordHash, role, createdAt });
   }
 
   static async findAll() {
-    const rows = await db.all('SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC');
+    const rows = await db.all('SELECT id, company_id, name, email, role, created_at FROM users ORDER BY created_at DESC');
     return rows.map((r) => User.fromRow(r));
   }
 }

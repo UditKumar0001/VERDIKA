@@ -50,14 +50,123 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
   const isAdversarial = Boolean(advObj && advObj.adversarialFlag === true);
   const detectedPatterns = Array.isArray(advObj?.detectedPatterns) ? advObj.detectedPatterns : [];
 
-  const rawDecision = (application.reviewer_decision || application.decision || 'pending_review').toLowerCase();
-  const isApproved = rawDecision === 'auto_approve' || rawDecision === 'approved';
-  const isRejected = rawDecision === 'auto_reject' || rawDecision === 'rejected';
-  const isReview = !isApproved && !isRejected;
+  // ==========================================
+  // DOCUMENT QUALITY STATUS EVALUATION
+  // ==========================================
+  const evaluateDocPdfStatus = (docObj, docTitle) => {
+    if (!docObj || (!docObj.name && !docObj.verified && !docObj.isUploaded)) {
+      return { status: 'Missing', text: '[○] Missing (Not Uploaded)', color: [220, 38, 38], title: docTitle };
+    }
+    const sizeBytes = docObj.size !== undefined ? Number(docObj.size) : null;
+    const width = docObj.width !== undefined ? Number(docObj.width) : null;
+    const isCorrupted = docObj.isCorrupted === true || docObj.isReadable === false;
+    const isImage = (docObj.type && docObj.type.startsWith('image/')) || /\.(jpg|jpeg|png)$/i.test(docObj.name || '');
+    const isPdf = (docObj.type && docObj.type === 'application/pdf') || /\.pdf$/i.test(docObj.name || '');
 
-  const verdictLabel = isApproved ? 'APPROVED / AUTO-APPROVED' : isRejected ? 'DECLINED / HIGH RISK' : 'ROUTE TO HUMAN REVIEW';
-  const verdictColor = isApproved ? [16, 185, 129] : isRejected ? [239, 68, 68] : [245, 158, 11];
-  const verdictBg = isApproved ? [240, 253, 244] : isRejected ? [254, 242, 242] : [255, 251, 235];
+    if (isCorrupted) {
+      return { status: 'Needs Re-upload', text: '[!] Needs Re-upload (Corrupted)', color: [217, 119, 6], title: docTitle };
+    }
+    if (isImage) {
+      if (width !== null && width < 600) {
+        return { status: 'Needs Re-upload', text: `[!] Needs Re-upload (Low Res: ${width}px)`, color: [217, 119, 6], title: docTitle };
+      }
+      if (sizeBytes !== null && sizeBytes > 0 && sizeBytes < 20 * 1024) {
+        return { status: 'Needs Re-upload', text: `[!] Needs Re-upload (Tiny: <20KB)`, color: [217, 119, 6], title: docTitle };
+      }
+    }
+    if (isPdf) {
+      if (docObj.pageCount !== undefined && Number(docObj.pageCount) === 0) {
+        return { status: 'Needs Re-upload', text: '[!] Needs Re-upload (0 pages)', color: [217, 119, 6], title: docTitle };
+      }
+      if (sizeBytes !== null && sizeBytes > 0 && sizeBytes < 10 * 1024) {
+        return { status: 'Needs Re-upload', text: `[!] Needs Re-upload (Tiny: <10KB)`, color: [217, 119, 6], title: docTitle };
+      }
+    }
+    return { status: 'Clear', text: `[✓] Clear (${docObj.name || 'Verified'})`, color: [5, 150, 105], title: docTitle };
+  };
+
+  const gstStatus = evaluateDocPdfStatus(documents.gst_certificate, 'GST Certificate');
+  const panStatus = evaluateDocPdfStatus(documents.pan_card, 'PAN Card');
+  const stmtStatus = evaluateDocPdfStatus(documents.bank_statement, 'Bank Statement');
+
+  const allDocStatuses = [gstStatus, panStatus, stmtStatus];
+  const missingDocs = allDocStatuses.filter((d) => d.status === 'Missing').map((d) => d.title);
+  const reuploadDocs = allDocStatuses.filter((d) => d.status === 'Needs Re-upload').map((d) => d.title);
+  const hasDocIssues = missingDocs.length > 0 || reuploadDocs.length > 0;
+
+  // ==========================================
+  // REVIEWER RECOMMENDATION SYNTHESIS LOGIC
+  // ==========================================
+  let recType = 'APPROVE'; // 'APPROVE' | 'MANUAL_REVIEW' | 'REJECT'
+  if (riskScore > 0.55 || isAdversarial) {
+    recType = 'REJECT';
+  } else if (hasDocIssues || riskScore >= 0.25) {
+    recType = 'MANUAL_REVIEW';
+  } else {
+    recType = 'APPROVE';
+  }
+
+  const recBadgeText = recType === 'APPROVE'
+    ? 'RECOMMEND: APPROVE'
+    : recType === 'REJECT'
+    ? 'RECOMMEND: REJECT'
+    : 'RECOMMEND: MANUAL REVIEW';
+
+  const recColor = recType === 'APPROVE'
+    ? [16, 185, 129] // Emerald
+    : recType === 'REJECT'
+    ? [220, 38, 38] // Red
+    : [217, 119, 6]; // Amber
+
+  const recBg = recType === 'APPROVE'
+    ? [240, 253, 244]
+    : recType === 'REJECT'
+    ? [254, 242, 242]
+    : [255, 251, 235];
+
+  // 2-3 sentence plain-English synthesized summary
+  const generateSynthesisText = () => {
+    let revenueSentence = '';
+    if (riskScore < 0.25) {
+      revenueSentence = `This merchant shows strong revenue patterns with low financial volatility (${(riskScore * 100).toFixed(1)}% risk score)`;
+    } else if (riskScore <= 0.55) {
+      revenueSentence = `This merchant displays moderate revenue variance and borderline credit metrics (${(riskScore * 100).toFixed(1)}% risk score)`;
+    } else {
+      revenueSentence = `This merchant exhibits elevated transaction risk (${(riskScore * 100).toFixed(1)}% risk score) with elevated refund rates or revenue volatility`;
+    }
+
+    const advPhrase = isAdversarial
+      ? 'and failed adversarial stress testing due to potential data manipulation patterns'
+      : 'and passed adversarial integrity checks';
+
+    let docSentence = '';
+    if (missingDocs.length > 0 && reuploadDocs.length > 0) {
+      docSentence = `However, ${missingDocs.length} required document(s) (${missingDocs.join(', ')}) are missing, and ${reuploadDocs.join(', ')} require(s) re-upload due to quality issues.`;
+    } else if (missingDocs.length > 0) {
+      docSentence = `However, ${missingDocs.length} of 3 required KYC document(s) (${missingDocs.join(', ')}) are missing.`;
+    } else if (reuploadDocs.length > 0) {
+      docSentence = `However, ${reuploadDocs.join(', ')} failed quality checks and require(s) re-upload before verification.`;
+    } else {
+      docSentence = 'All required KYC documents (GST Certificate, PAN Card, Bank Statement) and settlement accounts are fully verified.';
+    }
+
+    let actionSentence = '';
+    if (recType === 'APPROVE') {
+      actionSentence = 'Recommend immediate approval for merchant onboarding and standard credit limits.';
+    } else if (recType === 'REJECT') {
+      actionSentence = 'Recommend declining this application due to elevated portfolio risk parameters.';
+    } else {
+      if (missingDocs.length > 0 || reuploadDocs.length > 0) {
+        actionSentence = 'Recommend routing to manual review until missing KYC documents are submitted before final approval.';
+      } else {
+        actionSentence = 'Recommend routing to manual review for underwriter evaluation of borderline risk metrics.';
+      }
+    }
+
+    return `${revenueSentence} ${advPhrase}. ${docSentence} ${actionSentence}`;
+  };
+
+  const recommendationSummary = generateSynthesisText();
 
   const formatDate = (isoString) => {
     if (!isoString) return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -123,37 +232,52 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
   y = 34;
 
   // ==========================================
-  // 2. FINAL VERDICT BANNER (Prominent & Color-Coded)
+  // 2. REVIEWER RECOMMENDATION SECTION (Top Executive Summary)
   // ==========================================
-  doc.setFillColor(verdictBg[0], verdictBg[1], verdictBg[2]);
-  doc.setDrawColor(verdictColor[0], verdictColor[1], verdictColor[2]);
-  doc.setLineWidth(0.6);
-  doc.roundedRect(marginX, y, contentWidth, 16, 2, 2, 'FD');
-
-  // Left colored indicator bar
-  doc.setFillColor(verdictColor[0], verdictColor[1], verdictColor[2]);
-  doc.roundedRect(marginX, y, 4, 16, 2, 2, 'F');
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(verdictColor[0], verdictColor[1], verdictColor[2]);
-  doc.text(`DECISION VERDICT: ${verdictLabel}`, marginX + 8, y + 6.5);
-
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
-  doc.setTextColor(71, 85, 105);
-  const subText = isApproved
-    ? 'All automated credit risk, volatility, and adversarial integrity thresholds satisfied.'
-    : isRejected
-    ? 'Elevated risk parameters detected. Exceeds standard portfolio risk tolerance.'
-    : 'Borderline risk factors flagged. Routed to human underwriting team for manual review.';
-  doc.text(subText, marginX + 8, y + 12);
+  const splitRecSummary = doc.splitTextToSize(recommendationSummary, contentWidth - 12);
+  const recTextHeight = splitRecSummary.length * 4.0;
+  const recCardHeight = Math.max(26, 14 + recTextHeight + 4);
 
-  y += 22;
+  // Card Background
+  doc.setFillColor(recBg[0], recBg[1], recBg[2]);
+  doc.setDrawColor(recColor[0], recColor[1], recColor[2]);
+  doc.setLineWidth(0.6);
+  doc.roundedRect(marginX, y, contentWidth, recCardHeight, 2, 2, 'FD');
+
+  // Left solid color indicator bar
+  doc.setFillColor(recColor[0], recColor[1], recColor[2]);
+  doc.roundedRect(marginX, y, 4, recCardHeight, 2, 2, 'F');
+
+  // Recommendation Badge Pill
+  const badgeWidth = doc.getTextWidth(recBadgeText) + 8;
+  doc.setFillColor(recColor[0], recColor[1], recColor[2]);
+  doc.roundedRect(marginX + 8, y + 4.5, badgeWidth, 7, 1.5, 1.5, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(255, 255, 255);
+  doc.text(recBadgeText, marginX + 12, y + 9.2);
+
+  // Section Sub-title beside badge
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text('EXECUTIVE UNDERWRITER SYNTHESIS', marginX + 12 + badgeWidth + 4, y + 9.2);
+
+  // Plain-English Synthesized Summary Paragraph
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(51, 65, 85);
+  doc.text(splitRecSummary, marginX + 8, y + 16.5);
+
+  y += recCardHeight + 6;
 
   // ==========================================
   // 3. APPLICATION & BUSINESS PROFILE
   // ==========================================
+  ensureSpace(35);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(30, 41, 59);
@@ -222,34 +346,40 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
   const ifscCode = bankDetails.ifsc || 'HDFC0000060';
   const bankNameStr = `${bankDetails.bank_name || 'HDFC Bank'}${bankDetails.branch ? ` (${bankDetails.branch})` : ''}`;
 
-  const gstStatus = documents.gst_certificate ? `Uploaded (${documents.gst_certificate.name || 'gst_doc.pdf'})` : 'Uploaded (Verified)';
-  const panStatus = documents.pan_card ? `Uploaded (${documents.pan_card.name || 'pan_card.pdf'})` : 'Uploaded (Verified)';
-  const stmtStatus = documents.bank_statement ? `Uploaded (${documents.bank_statement.name || 'statement.pdf'})` : 'Uploaded (Verified)';
-
   const bankAndDocRows = [
     [
       { content: 'Account Holder:', styles: { fontStyle: 'bold', textColor: [100, 116, 139] } },
       { content: bankAccountHolder, styles: { textColor: [15, 23, 42] } },
       { content: 'GST Certificate:', styles: { fontStyle: 'bold', textColor: [100, 116, 139] } },
-      { content: `[✓] ${gstStatus}`, styles: { textColor: [5, 150, 105], fontStyle: 'bold' } }
+      { content: gstStatus.text, styles: { textColor: gstStatus.color, fontStyle: 'bold' } }
     ],
     [
       { content: 'Account No (Masked):', styles: { fontStyle: 'bold', textColor: [100, 116, 139] } },
       { content: bankAccMasked, styles: { textColor: [37, 99, 235], fontStyle: 'bold' } },
       { content: 'PAN Card:', styles: { fontStyle: 'bold', textColor: [100, 116, 139] } },
-      { content: `[✓] ${panStatus}`, styles: { textColor: [5, 150, 105], fontStyle: 'bold' } }
+      { content: panStatus.text, styles: { textColor: panStatus.color, fontStyle: 'bold' } }
     ],
     [
       { content: 'IFSC Code:', styles: { fontStyle: 'bold', textColor: [100, 116, 139] } },
       { content: `${ifscCode} (Verified)`, styles: { textColor: [15, 23, 42] } },
       { content: 'Bank Statement (6M):', styles: { fontStyle: 'bold', textColor: [100, 116, 139] } },
-      { content: `[✓] ${stmtStatus}`, styles: { textColor: [5, 150, 105], fontStyle: 'bold' } }
+      { content: stmtStatus.text, styles: { textColor: stmtStatus.color, fontStyle: 'bold' } }
     ],
     [
       { content: 'Bank & Branch:', styles: { fontStyle: 'bold', textColor: [100, 116, 139] } },
       { content: bankNameStr, styles: { textColor: [15, 23, 42] } },
-      { content: 'KYC Status:', styles: { fontStyle: 'bold', textColor: [100, 116, 139] } },
-      { content: 'Complete & Verified', styles: { textColor: [5, 150, 105], fontStyle: 'bold' } }
+      { content: 'KYC Overall Quality:', styles: { fontStyle: 'bold', textColor: [100, 116, 139] } },
+      {
+        content: (!hasDocIssues)
+          ? 'Clear & Verified'
+          : (reuploadDocs.length > 0)
+          ? 'Needs Re-upload'
+          : 'Incomplete / Missing',
+        styles: {
+          textColor: (!hasDocIssues) ? [5, 150, 105] : [217, 119, 6],
+          fontStyle: 'bold'
+        }
+      }
     ]
   ];
 
@@ -408,7 +538,9 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
     {
       name: 'DocumentVerificationAgent',
       role: 'KYC & Banking Format Integrity',
-      summary: 'Verified completeness of GST, PAN, and Bank Statement documentation along with IFSC compliance.'
+      summary: hasDocIssues
+        ? `Missing KYC items: ${missingDocs.join(', ') || 'None'}; Quality issues: ${reuploadDocs.join(', ') || 'None'} → Flagged for review.`
+        : 'Verified completeness and readability of GST, PAN, and Bank Statement documentation along with IFSC compliance.'
     },
     {
       name: 'RiskAgent',
@@ -425,7 +557,7 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
     {
       name: 'DecisionRouter',
       role: 'Policy Threshold Evaluation',
-      summary: `Routed application verdict as ${verdictLabel} in accordance with portfolio underwriting rulebook.`
+      summary: `Routed application verdict as ${recBadgeText} in accordance with portfolio underwriting rulebook.`
     },
     {
       name: 'ExplainerAgent',
@@ -439,7 +571,6 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
     if (!summaryStr) return 'Completed evaluation step.';
     let cleaned = summaryStr;
 
-    // Deduplicate repetitive 'flagged for manual review' occurrences if any exist
     if (cleaned.includes('flagged for manual review') && (cleaned.match(/flagged for manual review/g) || []).length > 1) {
       cleaned = cleaned.replace(/ — flagged for manual review/g, '').replace(/ flagged for manual review/g, '');
       cleaned = cleaned.trim() + ' → All flagged for manual review';
@@ -459,7 +590,6 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
 
   // Render each Agent block with dynamic height & proper page break protection
   agentListToRender.forEach((agent) => {
-    // 1. Calculate wrapped text lines for summary
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     const splitSummary = doc.splitTextToSize(agent.summary, contentWidth - 12);
@@ -470,10 +600,10 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
     const cardHeaderHeight = hasRole ? 10.5 : 7.0;
     const totalCardHeight = Math.max(16, cardHeaderHeight + textBlockHeight + 3.5);
 
-    // 2. Avoid splitting card across pages (page-break-inside: avoid)
+    // Avoid splitting card across pages (page-break-inside: avoid)
     ensureSpace(totalCardHeight + 3);
 
-    // 3. Draw Card Background
+    // Draw Card Background
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(203, 213, 225);
     doc.setLineWidth(0.3);
@@ -483,7 +613,7 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
     doc.setFillColor(37, 99, 235);
     doc.roundedRect(marginX, y, 2.5, totalCardHeight, 1, 1, 'F');
 
-    // 4. Line 1: Agent Name (Bold) + Latency (Right aligned)
+    // Line 1: Agent Name + Latency
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(30, 41, 59);
@@ -496,7 +626,7 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
       doc.text(agent.latency, pageWidth - marginX - 4, y + 4.5, { align: 'right' });
     }
 
-    // 5. Line 2: Role Label on distinct subline with proper vertical margin (NO overlapping)
+    // Line 2: Role Label on distinct subline with proper vertical margin
     if (hasRole) {
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(7.5);
@@ -504,7 +634,7 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
       doc.text(agent.role, marginX + 6, y + 8.5);
     }
 
-    // 6. Line 3+: Formatted Summary Text
+    // Line 3+: Formatted Summary Text
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(51, 65, 85);

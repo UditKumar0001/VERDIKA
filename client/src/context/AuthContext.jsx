@@ -3,12 +3,13 @@ import { getCurrentUser, login as apiLogin, signup as apiSignup, logout as apiLo
 
 /**
  * Authentication Context
- * Manages user session state, initialization from token, login, and logout.
+ * Manages user session state, company details, initialization from token, login, and logout.
  */
 export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState(null);
 
@@ -16,13 +17,15 @@ export function AuthProvider({ children }) {
     let isMounted = true;
     const initAuth = async () => {
       try {
-        const currentUser = await getCurrentUser();
-        if (isMounted) {
-          setUser(currentUser);
+        const data = await getCurrentUser();
+        if (isMounted && data) {
+          setUser(data.user || null);
+          setCompany(data.company || null);
         }
       } catch {
         if (isMounted) {
           setUser(null);
+          setCompany(null);
         }
       } finally {
         if (isMounted) {
@@ -42,6 +45,7 @@ export function AuthProvider({ children }) {
     try {
       const data = await apiLogin(credentials);
       setUser(data.user);
+      setCompany(data.company || null);
       return data;
     } catch (err) {
       setAuthError(err.message || 'Login failed');
@@ -54,6 +58,7 @@ export function AuthProvider({ children }) {
     try {
       const data = await apiSignup(userData);
       setUser(data.user);
+      setCompany(data.company || null);
       return data;
     } catch (err) {
       setAuthError(err.message || 'Signup failed');
@@ -66,6 +71,7 @@ export function AuthProvider({ children }) {
       await apiLogout();
     } finally {
       setUser(null);
+      setCompany(null);
       setAuthError(null);
     }
   };
@@ -74,6 +80,8 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider
       value={{
         user,
+        company,
+        setCompany,
         isAuthenticated: !!user,
         loading,
         authError,

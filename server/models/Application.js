@@ -6,6 +6,7 @@ import { db } from '../config/db.js';
  * Stores the full pipeline results for a merchant application.
  * Fields:
  *  - id (PK)
+ *  - company_id (FK to Companies - Tenant Isolation)
  *  - user_id (FK to Users)
  *  - merchant_data (JSON blob)
  *  - features (JSON blob)
@@ -23,7 +24,8 @@ import { db } from '../config/db.js';
 export class Application {
   constructor({
     id,
-    user_id,
+    company_id = null,
+    user_id = null,
     merchant_data,
     features,
     risk_result,
@@ -40,6 +42,7 @@ export class Application {
     updated_at
   }) {
     this.id = id;
+    this.company_id = company_id;
     this.user_id = user_id;
     this.merchant_data = merchant_data ? JSON.parse(JSON.stringify(merchant_data)) : null;
     this.features = features ? JSON.parse(JSON.stringify(features)) : null;
@@ -59,12 +62,12 @@ export class Application {
 
   static fromRow(row) {
     if (!row) return null;
-    let parsed;
     const parseJSON = (v) => {
       try { return JSON.parse(v); } catch { return null; }
     };
     return new Application({
       id: row.id,
+      company_id: row.company_id || null,
       user_id: row.user_id,
       merchant_data: parseJSON(row.merchant_data),
       features: parseJSON(row.features),
@@ -88,59 +91,72 @@ export class Application {
     return Application.fromRow(row);
   }
 
-   static async create(data) {
-   const now = new Date().toISOString();
-   const id = data.id || 'APP-' + crypto.randomUUID().slice(0, 8).toUpperCase();
-   await db.run(
-     `INSERT INTO applications (
-       id, user_id, merchant_data, features, risk_result, adversarial_result,
-       decision, routing_reason, applicant_message, underwriter_summary,
-       status, reviewer_id, reviewer_decision, created_at, updated_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-     [
-       id,
-       data.user_id,
-       JSON.stringify(data.merchant_data || {}),
-       JSON.stringify(data.features || {}),
-       JSON.stringify(data.risk_result || {}),
-       JSON.stringify(data.adversarial_result || {}),
-       data.decision,
-       data.routing_reason,
-       data.applicant_message,
-       JSON.stringify(data.underwriter_summary || {}),
-       data.status || 'pending_review',
-       data.reviewer_id || null,
-       data.reviewer_decision || null,
-       now,
-       now
-     ]
-   );
-   return new Application({ ...data, id, created_at: now, updated_at: now });
- }
-
+  static async create(data) {
+    const now = new Date().toISOString();
+    const id = data.id || 'APP-' + crypto.randomUUID().slice(0, 8).toUpperCase();
+    await db.run(
+      `INSERT INTO applications (
+        id, company_id, user_id, merchant_data, features, risk_result, adversarial_result,
+        decision, routing_reason, applicant_message, underwriter_summary,
+        status, reviewer_id, reviewer_decision, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        data.company_id || null,
+        data.user_id || null,
+        JSON.stringify(data.merchant_data || {}),
+        JSON.stringify(data.features || {}),
+        JSON.stringify(data.risk_result || {}),
+        JSON.stringify(data.adversarial_result || {}),
+        data.decision,
+        data.routing_reason,
+        data.applicant_message,
+        JSON.stringify(data.underwriter_summary || {}),
+        data.status || 'pending_review',
+        data.reviewer_id || null,
+        data.reviewer_decision || null,
+        now,
+        now
+      ]
+    );
+    return new Application({ ...data, id, created_at: now, updated_at: now });
+  }
 
   static async findAll(filters = {}) {
     let query = 'SELECT * FROM applications';
     const params = [];
     const conditions = [];
+
+    // Tenant / Company Isolation Filter
+    if (filters.company_id || filters.companyId) {
+      conditions.push('company_id = ?');
+      params.push(filters.company_id || filters.companyId);
+    }
+
+    // Merchant User Filter
     if (filters.user_id || filters.userId) {
       conditions.push('user_id = ?');
       params.push(filters.user_id || filters.userId);
     }
+
+    // Status Filter
     if (filters.status && filters.status !== 'ALL') {
       conditions.push('LOWER(status) = LOWER(?)');
       params.push(filters.status);
     }
+
+    // Keyword Search
     if (filters.search) {
-      conditions.push('(id LIKE ? OR applicant_message LIKE ?)');
-      params.push(`%${filters.search}%`, `%${filters.search}%`);
+      conditions.push('(id LIKE ? OR applicant_message LIKE ? OR merchant_data LIKE ?)');
+      params.push(`%${filters.search}%`, `%${filters.search}%`, `%${filters.search}%`);
     }
+
     if (conditions.length > 0) {
       query += ' WHERE ' + conditions.join(' AND ');
     }
     query += ' ORDER BY created_at DESC';
     const rows = await db.all(query, params);
-    return rows.map(r => Application.fromRow(r));
+    return rows.map((r) => Application.fromRow(r));
   }
 
   static async updateStatus(id, status, reviewer_id = null, reviewer_decision = null) {

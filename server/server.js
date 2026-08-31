@@ -9,6 +9,7 @@ import { generalLimiter } from './middleware/rateLimiter.js';
 // Route imports
 import authRoutes from './routes/auth.js';
 import underwritingRoutes from './routes/underwriting.js';
+import companyRoutes from './routes/companies.js';
 import adminRoutes from './routes/admin.js';
 
 const app = express();
@@ -45,6 +46,7 @@ app.get('/health', (req, res) => {
 
 // Mount application routes
 app.use('/api/auth', authRoutes);
+app.use('/api/companies', companyRoutes);
 app.use('/api/underwriting', underwritingRoutes);
 app.use('/api/admin', adminRoutes);
 

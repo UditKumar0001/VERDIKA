@@ -59,7 +59,7 @@ export const getCurrentUser = async () => {
     }
 
     const data = await res.json();
-    return data.user || null;
+    return data;
   } catch (error) {
     console.error('Failed to restore user session:', error);
     return null;

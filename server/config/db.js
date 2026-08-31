@@ -72,8 +72,17 @@ export const db = {
  */
 const initSchema = async () => {
   const schemaSql = `
+    CREATE TABLE IF NOT EXISTS companies (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      email TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
+      company_id TEXT,
       name TEXT NOT NULL,
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
@@ -83,6 +92,7 @@ const initSchema = async () => {
 
     CREATE TABLE IF NOT EXISTS applications (
       id TEXT PRIMARY KEY,
+      company_id TEXT,
       user_id TEXT,
       merchant_data TEXT,
       features TEXT,
@@ -114,6 +124,25 @@ const initSchema = async () => {
   `;
 
   await db.exec(schemaSql);
+
+  // Run Column Migrations for SQLite (if tables already existed without company_id)
+  try {
+    const userColumns = await db.all(`PRAGMA table_info(users)`);
+    if (!userColumns.some((c) => c.name === 'company_id')) {
+      await db.exec(`ALTER TABLE users ADD COLUMN company_id TEXT`);
+    }
+  } catch (err) {
+    logger.warn('[DB Migration] users.company_id check:', err.message);
+  }
+
+  try {
+    const appColumns = await db.all(`PRAGMA table_info(applications)`);
+    if (!appColumns.some((c) => c.name === 'company_id')) {
+      await db.exec(`ALTER TABLE applications ADD COLUMN company_id TEXT`);
+    }
+  } catch (err) {
+    logger.warn('[DB Migration] applications.company_id check:', err.message);
+  }
 };
 
 /**
@@ -121,17 +150,35 @@ const initSchema = async () => {
  */
 const seedDefaultData = async () => {
   try {
+    // 0. Seed Default Finance Company: Verdika Capital
+    let defaultCompany = await db.get('SELECT * FROM companies WHERE slug = ?', ['verdika-capital']);
+    if (!defaultCompany) {
+      const companyId = crypto.randomUUID();
+      await db.run(
+        `INSERT INTO companies (id, name, slug, email) VALUES (?, ?, ?, ?)`,
+        [companyId, 'Verdika Capital', 'verdika-capital', 'admin@verdika.internal']
+      );
+      defaultCompany = { id: companyId, name: 'Verdika Capital', slug: 'verdika-capital' };
+      logger.info('[DB Seed] Seeded default finance company (Verdika Capital, slug: verdika-capital)');
+    }
+
     // 1. Seed Demo Underwriter
     const existingUnderwriter = await db.get('SELECT id FROM users WHERE email = ?', ['underwriter@verdika.internal']);
     if (!existingUnderwriter) {
       const passwordHash = await bcrypt.hash('Verdika123!', 10);
       const underwriterId = crypto.randomUUID();
       await db.run(
-        `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)`,
-        [underwriterId, 'Chief Underwriter', 'underwriter@verdika.internal', passwordHash, 'underwriter']
+        `INSERT INTO users (id, company_id, name, email, password_hash, role) VALUES (?, ?, ?, ?, ?, ?)`,
+        [underwriterId, defaultCompany.id, 'Chief Underwriter', 'underwriter@verdika.internal', passwordHash, 'underwriter']
       );
       logger.info('[DB Seed] Seeded default underwriter account (underwriter@verdika.internal)');
+    } else {
+      // Ensure existing underwriter has default company_id
+      await db.run(`UPDATE users SET company_id = ? WHERE email = ? AND company_id IS NULL`, [defaultCompany.id, 'underwriter@verdika.internal']);
     }
+
+    // Backfill NULL application company_ids with defaultCompany.id
+    await db.run(`UPDATE applications SET company_id = ? WHERE company_id IS NULL`, [defaultCompany.id]);
 
     // 2. Seed Admin User
     const existingAdmin = await db.get('SELECT id FROM users WHERE email = ?', ['admin@verdika.internal']);
