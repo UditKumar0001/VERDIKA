@@ -3736,69 +3736,86 @@
   font-family: inherit;
 }
 
-/* Floating Action Button with Soft Breathing Glow */
+/* RAY-style Circular Floating Action Button with Soft Breathing Glow */
 .verdi-floating-btn {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  padding: 0;
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  padding: 0.65rem 1.15rem 0.65rem 0.75rem;
-  border-radius: 9999px;
-  background: linear-gradient(135deg, #2563eb 0%, #06b6d4 100%);
+  justify-content: center;
+  background: linear-gradient(135deg, #4f46e5 0%, #2563eb 50%, #0ea5e9 100%);
   color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
   cursor: pointer;
-  font-weight: 700;
-  font-size: 0.88rem;
-  letter-spacing: 0.3px;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  animation: verdiBreathingGlow 2.8s ease-in-out infinite;
+  box-shadow: 0 8px 24px -4px rgba(37, 99, 235, 0.45), 0 0 16px rgba(79, 70, 229, 0.35);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              background 0.25s ease,
+              border-color 0.25s ease;
+  animation: verdiBreathingGlow 2.5s ease-in-out infinite;
   user-select: none;
+  position: relative;
+  outline: none;
+  z-index: 99999;
 }
 
 .verdi-floating-btn:hover {
-  transform: translateY(-2px) scale(1.03);
-  background: linear-gradient(135deg, #1d4ed8 0%, #0891b2 100%);
+  transform: scale(1.08) translateY(-2px);
+  box-shadow: 0 12px 32px -4px rgba(37, 99, 235, 0.7), 0 0 28px rgba(14, 165, 233, 0.6);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.verdi-floating-btn:active {
+  transform: scale(0.96);
 }
 
 .verdi-floating-btn.active {
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  border-color: var(--accent-cyan);
-  color: var(--accent-cyan);
+  border-color: rgba(59, 130, 246, 0.6);
+  color: #38bdf8;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.6), 0 0 16px rgba(56, 189, 248, 0.35);
+  animation: none;
 }
 
 @keyframes verdiBreathingGlow {
   0% {
-    box-shadow: 0 0 12px rgba(37, 99, 235, 0.45), 0 0 24px rgba(6, 182, 212, 0.25);
+    box-shadow: 0 6px 20px -2px rgba(37, 99, 235, 0.4), 0 0 14px rgba(79, 70, 229, 0.25);
   }
   50% {
-    box-shadow: 0 0 24px rgba(37, 99, 235, 0.8), 0 0 45px rgba(6, 182, 212, 0.55), 0 0 60px rgba(16, 185, 129, 0.25);
+    box-shadow: 0 10px 30px -2px rgba(37, 99, 235, 0.65), 0 0 26px rgba(14, 165, 233, 0.45);
   }
   100% {
-    box-shadow: 0 0 12px rgba(37, 99, 235, 0.45), 0 0 24px rgba(6, 182, 212, 0.25);
+    box-shadow: 0 6px 20px -2px rgba(37, 99, 235, 0.4), 0 0 14px rgba(79, 70, 229, 0.25);
   }
 }
 
-.verdi-btn-icon-wrapper {
-  position: relative;
-  width: 28px;
-  height: 28px;
+.verdi-v-icon-wrap {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  width: 100%;
+  height: 100%;
 }
 
-.verdi-sparkle-icon {
-  font-size: 1.1rem;
-  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.8));
+.verdi-v-monogram {
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.25));
+  transition: transform 0.25s ease;
 }
 
-.verdi-btn-badge-logo {
-  display: none;
+.verdi-floating-btn:hover .verdi-v-monogram {
+  transform: scale(1.06);
 }
 
-.verdi-btn-label {
-  font-weight: 700;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+.verdi-close-icon {
+  animation: verdiSpinIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes verdiSpinIn {
+  0% { transform: rotate(-90deg) scale(0.6); opacity: 0; }
+  100% { transform: rotate(0deg) scale(1); opacity: 1; }
 }
 
 /* Chat Panel */

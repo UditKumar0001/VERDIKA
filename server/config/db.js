@@ -135,6 +135,18 @@ const initSchema = async () => {
       sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS company_invites (
+      id TEXT PRIMARY KEY,
+      company_id TEXT NOT NULL,
+      email TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'underwriter',
+      token TEXT UNIQUE NOT NULL,
+      invited_by TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      expires_at DATETIME NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `;
 
   await db.exec(schemaSql);

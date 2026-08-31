@@ -343,6 +343,15 @@ router.post('/applications/:id/review', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'Access denied: Application belongs to another institution.' });
     }
 
+    // Critical Security Check: Underwriters cannot review their own application
+    const merchantEmail = application.merchant_data?.applicant_email || application.merchant_data?.email || '';
+    const isSelfApplication = (merchantEmail && merchantEmail.toLowerCase() === req.user.email.toLowerCase()) || (application.user_id && application.user_id === req.user.id);
+    if (isSelfApplication && req.user.role !== 'admin') {
+      return res.status(403).json({
+        error: 'Anti-Collusion Policy: You cannot review or approve your own loan application.'
+      });
+    }
+
     // 1. Update Application status to 'closed', setting reviewer_id and reviewer_decision
     const updatedApp = await Application.updateStatus(id, 'closed', req.user.id, normalizedDecision);
 

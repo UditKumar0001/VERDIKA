@@ -17,6 +17,7 @@ import ApplicationDetail from './pages/ApplicationDetail';
 import NewApplication from './pages/NewApplication';
 import PublicApply from './pages/PublicApply';
 import ApplicationStatus from './pages/ApplicationStatus';
+import AcceptInvite from './pages/AcceptInvite';
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
               <Route path="/signup" element={<Signup />} />
               <Route path="/apply/:companySlug" element={<PublicApply />} />
               <Route path="/status/:applicationToken" element={<ApplicationStatus />} />
+              <Route path="/invite/:token" element={<AcceptInvite />} />
 
               {/* Protected Routes */}
               <Route

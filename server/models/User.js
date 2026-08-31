@@ -70,4 +70,13 @@ export class User {
     const rows = await db.all('SELECT id, company_id, name, email, role, created_at FROM users ORDER BY created_at DESC');
     return rows.map((r) => User.fromRow(r));
   }
+
+  static async findByCompany(company_id) {
+    if (!company_id) return [];
+    const rows = await db.all(
+      'SELECT id, company_id, name, email, role, created_at FROM users WHERE company_id = ? ORDER BY created_at ASC',
+      [company_id]
+    );
+    return rows.map((r) => User.fromRow(r));
+  }
 }

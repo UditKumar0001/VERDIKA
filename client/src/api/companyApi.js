@@ -73,3 +73,87 @@ export async function submitPublicApplication(slug, payload) {
     throw new Error(error.message || 'Application submission failed.');
   }
 }
+
+/**
+ * Retrieves list of current team members and pending invites for the company
+ */
+export async function getCompanyTeam() {
+  const res = await fetch(`${API_BASE_URL}/companies/team`, {
+    method: 'GET',
+    credentials: 'include'
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to retrieve team members.');
+  }
+  return data;
+}
+
+/**
+ * Invites a new team member by email
+ */
+export async function inviteTeamMember({ email, role = 'underwriter' }) {
+  const res = await fetch(`${API_BASE_URL}/companies/invite`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ email, role })
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to send invitation.');
+  }
+  return data;
+}
+
+/**
+ * Revokes a pending team invite
+ */
+export async function revokeInvite(inviteId) {
+  const res = await fetch(`${API_BASE_URL}/companies/invite/${inviteId}`, {
+    method: 'DELETE',
+    credentials: 'include'
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to revoke invitation.');
+  }
+  return data;
+}
+
+/**
+ * Validates an invite token publicly
+ */
+export async function validateInviteToken(token) {
+  const res = await fetch(`${API_BASE_URL}/auth/invite/${encodeURIComponent(token)}`, {
+    method: 'GET'
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Invalid or expired invitation link.');
+  }
+  return data;
+}
+
+/**
+ * Accepts an invitation and registers the new underwriter
+ */
+export async function acceptInvite({ token, name, password }) {
+  const res = await fetch(`${API_BASE_URL}/auth/accept-invite`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ token, name, password })
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to accept invitation.');
+  }
+  return data;
+}
+

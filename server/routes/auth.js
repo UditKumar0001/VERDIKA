@@ -35,9 +35,12 @@ const setAuthCookie = (res, token) => {
   });
 };
 
+import { CompanyInvite } from '../models/CompanyInvite.js';
+
 /**
  * POST /api/auth/signup
- * Supports both Merchant applicants and Finance Company multi-tenant registrations.
+ * Only Finance Company Admin registration is available publicly.
+ * Underwriter accounts must be created via Admin invite.
  */
 router.post('/signup', authLimiter, async (req, res) => {
   try {
@@ -48,56 +51,177 @@ router.post('/signup', authLimiter, async (req, res) => {
 
     const { name, company_name, email, password, role } = req.body;
 
+    // Critical Security Guard: Block direct public underwriter self-registration
+    if (role === 'underwriter' || role === 'reviewer') {
+      return res.status(403).json({
+        error: 'Underwriter accounts cannot be created directly. Please ask your Finance Company Administrator for an official team invitation link.'
+      });
+    }
+
     const existingUser = await User.findByEmail(email);
     if (existingUser) {
       return res.status(409).json({ error: 'An account with this email address already exists.' });
     }
 
-    let company = null;
-    let company_id = null;
-    const isFinanceCompany = role === 'finance_company' || Boolean(company_name);
-
-    if (isFinanceCompany) {
-      const orgName = company_name || name || 'Finance Partner';
-      company = await Company.create({
-        name: orgName,
-        email
-      });
-      company_id = company.id;
-    }
+    const orgName = company_name || name || 'Finance Partner';
+    const company = await Company.create({
+      name: orgName,
+      email
+    });
+    const company_id = company.id;
 
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(password, saltRounds);
 
     const user = await User.create({
-      name: name || company_name || 'User',
+      name: name || company_name || 'Admin',
       company_id,
       email,
       passwordHash,
-      role: isFinanceCompany ? 'underwriter' : (role || 'merchant')
+      role: 'admin' // Finance Company Creator is Admin
     });
 
     const token = generateToken(user, company);
     setAuthCookie(res, token);
 
-    logger.info(`[Auth] User registered: ${user.email} (Role: ${user.role}${company ? `, Company: ${company.name} [${company.slug}]` : ''})`);
+    logger.info(`[Auth] Finance Company Admin registered: ${user.email} (Company: ${company.name} [${company.slug}])`);
 
     const sanitizedUser = user.sanitize();
     const appOrigin = req.headers.origin || 'http://localhost:5173';
 
     return res.status(201).json({
-      message: isFinanceCompany ? 'Finance Company registered successfully' : 'Account created successfully',
+      message: 'Finance Company registered successfully',
       user: sanitizedUser,
-      company: company ? {
+      company: {
         id: company.id,
         name: company.name,
         slug: company.slug,
         apply_link: `${appOrigin}/apply/${company.slug}`
-      } : null
+      }
     });
   } catch (error) {
     logger.error('[Auth Signup Error]:', error);
     return res.status(500).json({ error: 'Internal server error during registration.' });
+  }
+});
+
+/**
+ * GET /api/auth/invite/:token
+ * Public endpoint to validate an invite token and retrieve the company name and invited email.
+ */
+router.get('/invite/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    if (!token) {
+      return res.status(400).json({ error: 'Invite token is required.' });
+    }
+
+    const invite = await CompanyInvite.findByToken(token);
+    if (!invite) {
+      return res.status(404).json({ error: 'This invitation link does not exist. Please request a new invite from your administrator.' });
+    }
+
+    if (invite.status === 'accepted') {
+      return res.status(410).json({ error: 'This invite has already been accepted. Please sign in to your account.' });
+    }
+
+    if (invite.status === 'revoked') {
+      return res.status(410).json({ error: 'This invitation was revoked by your administrator. Please ask for a new invite.' });
+    }
+
+    if (invite.isExpired()) {
+      return res.status(410).json({ error: 'This invite link has expired. Please ask your administrator to resend the invitation.' });
+    }
+
+    const company = await Company.findById(invite.company_id);
+    if (!company) {
+      return res.status(404).json({ error: 'Associated finance company not found.' });
+    }
+
+    return res.json({
+      valid: true,
+      email: invite.email,
+      role: invite.role,
+      expires_at: invite.expires_at,
+      company: {
+        id: company.id,
+        name: company.name,
+        slug: company.slug
+      }
+    });
+  } catch (error) {
+    logger.error('[Auth Validate Invite Error]:', error);
+    return res.status(500).json({ error: 'Failed to validate invite token.' });
+  }
+});
+
+/**
+ * POST /api/auth/accept-invite
+ * Accepts an invitation, registers the new Underwriter, assigns them to the inviting company, and logs them in.
+ */
+router.post('/accept-invite', authLimiter, async (req, res) => {
+  try {
+    const { token, name, password } = req.body;
+
+    if (!token || !name || !password) {
+      return res.status(400).json({ error: 'Please provide full name, password, and invite token.' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
+    }
+
+    const invite = await CompanyInvite.findByToken(token);
+    if (!invite || !invite.isValid()) {
+      return res.status(400).json({ error: 'This invite link is no longer valid or has expired. Please ask your administrator to resend it.' });
+    }
+
+    // Check if account already exists
+    const existingUser = await User.findByEmail(invite.email);
+    if (existingUser) {
+      return res.status(409).json({ error: 'An account with this email address already exists. Please sign in instead.' });
+    }
+
+    const company = await Company.findById(invite.company_id);
+    if (!company) {
+      return res.status(404).json({ error: 'Associated company not found.' });
+    }
+
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+
+    // Create user strictly linked to the inviting company's company_id
+    const user = await User.create({
+      name: name.trim(),
+      email: invite.email,
+      passwordHash,
+      role: invite.role || 'underwriter',
+      company_id: company.id
+    });
+
+    // Mark invite as accepted
+    await CompanyInvite.markAccepted(invite.id);
+
+    const authToken = generateToken(user, company);
+    setAuthCookie(res, authToken);
+
+    logger.info(`[Auth] Underwriter invite accepted: ${user.email} (Role: ${user.role}, Company: ${company.name})`);
+
+    const appOrigin = req.headers.origin || 'http://localhost:5173';
+
+    return res.status(201).json({
+      message: 'Invitation accepted! Welcome to the team.',
+      user: user.sanitize(),
+      company: {
+        id: company.id,
+        name: company.name,
+        slug: company.slug,
+        apply_link: `${appOrigin}/apply/${company.slug}`
+      }
+    });
+  } catch (error) {
+    logger.error('[Auth Accept Invite Error]:', error);
+    return res.status(500).json({ error: 'Failed to accept invitation.' });
   }
 });
 

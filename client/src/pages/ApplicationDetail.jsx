@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { fetchApplicationById, submitReviewDecision } from '../api/applicationApi';
 import { generateUnderwritingReportPDF } from '../utils/pdfGenerator';
 
 export default function ApplicationDetail() {
   const { id } = useParams();
+  const { user } = useAuth();
 
   const [application, setApplication] = useState(null);
   const [auditLogs, setAuditLogs] = useState([]);
@@ -445,51 +447,88 @@ export default function ApplicationDetail() {
           </div>
 
           {/* Underwriter Action Panel OR Closed Decision Summary */}
-          {isPending ? (
-            <div className="dashboard-card action-panel-card">
-              <h2 className="card-title" style={{ marginBottom: '0.75rem' }}>
-                ✍️ Underwriter Decision Action Panel
-              </h2>
-              <p className="dashboard-subtitle" style={{ marginBottom: '1.25rem' }}>
-                Review pipeline evaluation trace, input rationale, and confirm or override the final loan decision.
-              </p>
+          {(() => {
+            const merchantEmail = application?.merchant_data?.applicant_email || application?.merchant_data?.email || '';
+            const isSelfApplication = Boolean(merchantEmail && user?.email && merchantEmail.toLowerCase() === user.email.toLowerCase()) || Boolean(application?.user_id && application?.user_id === user?.id);
 
-              {actionError && <div className="alert alert-error">{actionError}</div>}
-
-              <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-                <label htmlFor="underwriter-notes" style={{ fontWeight: '700', fontSize: '0.85rem' }}>
-                  Underwriter Rationale & Inspection Notes
-                </label>
-                <textarea
-                  id="underwriter-notes"
-                  rows="4"
-                  placeholder="Add detailed reviewer notes (e.g. Verified merchant bank statements, confirmed low volatility baseline...)"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="notes-textarea"
-                ></textarea>
-              </div>
-
-              <div className="decision-button-group">
-                <button
-                  type="button"
-                  className="btn-approve"
-                  disabled={submitting}
-                  onClick={() => handleReviewSubmit('approved')}
+            if (isPending && isSelfApplication && user?.role !== 'admin') {
+              return (
+                <div
+                  className="dashboard-card"
+                  style={{
+                    border: '1px solid var(--status-rejected)',
+                    background: 'var(--status-rejected-bg)',
+                    padding: '1.5rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '1rem'
+                  }}
                 >
-                  {submitting ? 'Submitting...' : '✓ Approve Application'}
-                </button>
-                <button
-                  type="button"
-                  className="btn-reject"
-                  disabled={submitting}
-                  onClick={() => handleReviewSubmit('rejected')}
-                >
-                  {submitting ? 'Submitting...' : '✕ Decline Application'}
-                </button>
-              </div>
-            </div>
-          ) : (
+                  <span style={{ fontSize: '2.5rem' }}>🚫</span>
+                  <div>
+                    <h3 style={{ color: 'var(--status-rejected)', margin: '0 0 0.25rem 0', fontSize: '1.05rem', fontWeight: 800 }}>
+                      Anti-Collusion Safety Lock Enforced
+                    </h3>
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-main)', lineHeight: '1.45' }}>
+                      You cannot review, adjudicate, or approve your own loan application (<strong style={{ color: 'var(--status-rejected)' }}>{merchantEmail}</strong>). To ensure institutional compliance, this application must be reviewed by an independent underwriter on your team.
+                    </p>
+                  </div>
+                </div>
+              );
+            }
+
+            if (isPending) {
+              return (
+                <div className="dashboard-card action-panel-card">
+                  <h2 className="card-title" style={{ marginBottom: '0.75rem' }}>
+                    ✍️ Underwriter Decision Action Panel
+                  </h2>
+                  <p className="dashboard-subtitle" style={{ marginBottom: '1.25rem' }}>
+                    Review pipeline evaluation trace, input rationale, and confirm or override the final loan decision.
+                  </p>
+
+                  {actionError && <div className="alert alert-error">{actionError}</div>}
+
+                  <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                    <label htmlFor="underwriter-notes" style={{ fontWeight: '700', fontSize: '0.85rem' }}>
+                      Underwriter Rationale & Inspection Notes
+                    </label>
+                    <textarea
+                      id="underwriter-notes"
+                      rows="4"
+                      placeholder="Add detailed reviewer notes (e.g. Verified merchant bank statements, confirmed low volatility baseline...)"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      className="notes-textarea"
+                    ></textarea>
+                  </div>
+
+                  <div className="decision-button-group">
+                    <button
+                      type="button"
+                      className="btn-approve"
+                      disabled={submitting}
+                      onClick={() => handleReviewSubmit('approved')}
+                    >
+                      {submitting ? 'Submitting...' : '✓ Approve Application'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-reject"
+                      disabled={submitting}
+                      onClick={() => handleReviewSubmit('rejected')}
+                    >
+                      {submitting ? 'Submitting...' : '✕ Decline Application'}
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
+            return null;
+          })()}
+
+          {!isPending && (
             <div className="dashboard-card closed-summary-card">
               <div className="closed-summary-header">
                 <div>

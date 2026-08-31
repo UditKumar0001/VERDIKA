@@ -219,19 +219,33 @@ export default function VerdiChatbot() {
         </div>
       )}
 
-      {/* Floating Action Button */}
+      {/* RAY-style Circular Floating Action Button */}
       <button
         type="button"
         className={`verdi-floating-btn ${isOpen ? 'active' : ''}`}
         onClick={() => setIsOpen(!isOpen)}
-        title={isOpen ? 'Close Verdi' : 'Ask Verdi AI Assistant'}
+        title={isOpen ? 'Close Verdi' : 'Ask Verdi AI Underwriting Copilot'}
         aria-label="Ask Verdi AI Assistant"
       >
-        <div className="verdi-btn-icon-wrapper">
-          <span className="verdi-sparkle-icon">✨</span>
-          <span className="verdi-btn-badge-logo">V</span>
-        </div>
-        <span className="verdi-btn-label">Ask Verdi</span>
+        {isOpen ? (
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="verdi-close-icon">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        ) : (
+          <div className="verdi-v-icon-wrap">
+            <svg viewBox="0 0 32 32" width="26" height="26" fill="none" className="verdi-v-monogram">
+              <path
+                d="M5 6.5L14.2 24.8C15 26.4 17 26.4 17.8 24.8L27 6.5C27.6 5.3 26.7 4 25.3 4H20.8C20 4 19.3 4.5 18.9 5.2L16 12L13.1 5.2C12.7 4.5 12 4 11.2 4H6.7C5.3 4 4.4 5.3 5 6.5Z"
+                fill="#ffffff"
+              />
+              <path
+                d="M16 12L13.1 5.2C12.7 4.5 12 4 11.2 4H6.7C5.3 4 4.4 5.3 5 6.5L14.2 24.8C14.7 25.8 15.8 26.2 16 26.2V12Z"
+                fill="rgba(255, 255, 255, 0.85)"
+              />
+            </svg>
+          </div>
+        )}
       </button>
     </div>
   );
