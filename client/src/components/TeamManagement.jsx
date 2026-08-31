@@ -112,7 +112,7 @@ export default function TeamManagement({ user, company }) {
             👥 Authorized Team Members & Underwriters
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
-            Underwriters are added strictly via invitation. Team members can review credit applications submitted to <strong>{company?.name || 'your institution'}</strong>.
+            Underwriters are added strictly via invitation. Team members can review credit applications submitted to <strong>{company?.name || 'your company'}</strong>.
           </p>
         </div>
 
@@ -136,7 +136,7 @@ export default function TeamManagement({ user, company }) {
       {loading ? (
         <div className="loading-spinner-container" style={{ padding: '3rem' }}>
           <div className="spinner"></div>
-          <p>Loading institution team members...</p>
+          <p>Loading company team members...</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -410,7 +410,7 @@ export default function TeamManagement({ user, company }) {
                 </div>
 
                 <div style={{ background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)', borderRadius: '8px', padding: '0.75rem', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
-                  🔒 <strong>Security Policy:</strong> The recipient will only be authorized to view and review credit applications belonging to <strong>{company?.name || 'your institution'}</strong>.
+                  🔒 <strong>Security Policy:</strong> The recipient will only be authorized to view and review credit applications belonging to <strong>{company?.name || 'your company'}</strong>.
                 </div>
 
                 <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>

@@ -73,7 +73,7 @@ export default function PublicApply() {
             Invalid or Expired Link
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: '1.5', marginBottom: '1.75rem' }}>
-            The merchant application link <code style={{ color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.1)', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>/apply/{companySlug}</code> does not match any active finance institution on our platform.
+            The merchant application link <code style={{ color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.1)', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>/apply/{companySlug}</code> does not match any active finance company on our platform.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <Link to="/" className="btn-primary" style={{ textAlign: 'center', textDecoration: 'none' }}>
@@ -119,7 +119,7 @@ export default function PublicApply() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <span className="badge badge-approved" style={{ fontSize: '0.72rem' }}>
-            ✓ Verified Finance Institution
+            ✓ Verified Finance Company
           </span>
         </div>
       </div>

@@ -137,7 +137,7 @@ router.post('/invite', requireAuth, async (req, res) => {
   try {
     const userCompanyId = req.user.company_id || req.user.companyId;
     if (!userCompanyId) {
-      return res.status(403).json({ error: 'Only institution administrators can invite team members.' });
+      return res.status(403).json({ error: 'Only company administrators can invite team members.' });
     }
 
     if (req.user.role !== 'admin' && req.user.role !== 'underwriter') {

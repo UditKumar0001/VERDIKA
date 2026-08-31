@@ -81,7 +81,7 @@ router.get('/applications/:id', requireAuth, async (req, res) => {
 
     const userCompanyId = req.user.company_id || req.user.companyId;
     if (userCompanyId && application.company_id && application.company_id !== userCompanyId && req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Access denied: Application belongs to another institution.' });
+      return res.status(403).json({ error: 'Access denied: Application belongs to another company.' });
     }
 
     const auditLogs = await AuditLog.findByApplicationId(id);
@@ -340,7 +340,7 @@ router.post('/applications/:id/review', requireAuth, async (req, res) => {
 
     const userCompanyId = req.user.company_id || req.user.companyId;
     if (userCompanyId && application.company_id && application.company_id !== userCompanyId && req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Access denied: Application belongs to another institution.' });
+      return res.status(403).json({ error: 'Access denied: Application belongs to another company.' });
     }
 
     // Critical Security Check: Underwriters cannot review their own application

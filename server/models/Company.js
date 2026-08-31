@@ -3,7 +3,7 @@ import { db } from '../config/db.js';
 
 /**
  * Company Model
- * Represents a tenant / finance company / NBFC institution on the Verdika multi-tenant platform.
+ * Represents a tenant / finance company / NBFC on the Verdika multi-tenant platform.
  */
 export class Company {
   constructor({ id, name, slug, email, created_at }) {

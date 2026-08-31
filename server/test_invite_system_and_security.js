@@ -136,7 +136,7 @@ async function testSecurityAndInviteSystem() {
   const appB = await Application.create({
     id: `APP-OTHER-${uid}`,
     company_id: 'COMP-DIFFERENT-TENANT',
-    merchant_data: { business_name: 'Other Institution Merchant', applicant_email: 'merchant_other@test.com' },
+    merchant_data: { business_name: 'Other Finance Company Merchant', applicant_email: 'merchant_other@test.com' },
     status: 'pending_review'
   });
 
@@ -146,14 +146,14 @@ async function testSecurityAndInviteSystem() {
   });
   console.log(`Underwriter access to BluePeak App (${appA.id}): HTTP ${accessResA.status}`);
 
-  // Underwriter attempts to access another institution's app
+  // Underwriter attempts to access another company's app
   const accessResB = await fetch(`${BASE_URL}/underwriting/applications/${appB.id}`, {
     headers: { Cookie: underwriterCookie || '' }
   });
   console.log(`Underwriter access to Other Company App (${appB.id}): HTTP ${accessResB.status}`);
 
   const pass4 = accessResA.status === 200 && accessResB.status === 403;
-  console.log(`[CHECK 4] Tenant isolation verified (200 on own apps, 403 on other institutions)? ${pass4 ? 'PASS' : 'FAIL'}\n`);
+  console.log(`[CHECK 4] Tenant isolation verified (200 on own apps, 403 on other companies)? ${pass4 ? 'PASS' : 'FAIL'}\n`);
 
   // -------------------------------------------------------------------------
   // TEST 5: Anti-Collusion Self-Review Safety Check

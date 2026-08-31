@@ -62,7 +62,7 @@ async function runMultiTenantTest() {
   console.log(`Lookup for ${slugA}:`, lookupData.company.name);
 
   // Invalid slug lookup
-  const invalidLookup = await fetch(`${BASE_URL}/companies/lookup/non-existent-institution-999`);
+  const invalidLookup = await fetch(`${BASE_URL}/companies/lookup/non-existent-company-999`);
   console.log(`Lookup for invalid slug (Status: ${invalidLookup.status})`);
   if (invalidLookup.status !== 404) throw new Error('Expected 404 for non-existent company slug');
 

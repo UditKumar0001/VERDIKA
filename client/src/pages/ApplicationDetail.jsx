@@ -470,7 +470,7 @@ export default function ApplicationDetail() {
                       Anti-Collusion Safety Lock Enforced
                     </h3>
                     <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-main)', lineHeight: '1.45' }}>
-                      You cannot review, adjudicate, or approve your own loan application (<strong style={{ color: 'var(--status-rejected)' }}>{merchantEmail}</strong>). To ensure institutional compliance, this application must be reviewed by an independent underwriter on your team.
+                      You cannot review, adjudicate, or approve your own loan application (<strong style={{ color: 'var(--status-rejected)' }}>{merchantEmail}</strong>). To ensure company policy compliance, this application must be reviewed by an independent underwriter on your team.
                     </p>
                   </div>
                 </div>

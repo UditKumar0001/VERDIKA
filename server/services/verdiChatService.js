@@ -45,8 +45,8 @@ const VERDI_KNOWLEDGE_BASE = [
     answer: 'Verdika\'s autonomous multi-agent pipeline evaluates clean applications in under 3 seconds! If an application triggers manual review due to missing KYC documents or borderline risk, underwriters can review the decision traces and close it in their dashboard within a few business hours.'
   },
   {
-    keywords: ['multi-tenant', 'company', 'institution', 'shareable', 'slug', 'public link'],
-    answer: 'Finance companies can register a tenant account on Verdika to receive a dedicated, shareable application link (/apply/your-company). All merchant applications submitted through that link are strictly isolated and routed exclusively to that institution\'s private review queue.'
+    keywords: ['multi-tenant', 'company', 'finance company', 'shareable', 'slug', 'public link'],
+    answer: 'Finance companies can register a tenant account on Verdika to receive a dedicated, shareable application link (/apply/your-company). All merchant applications submitted through that link are strictly isolated and routed exclusively to that finance company\'s private review queue.'
   },
   {
     keywords: ['pdf', 'report', 'download report', 'recommendation'],

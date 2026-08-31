@@ -153,7 +153,7 @@ function ReviewerDashboard({ user, company }) {
           </h1>
           <p className="dashboard-subtitle">
             {activeTab === 'team'
-              ? 'Manage authorized underwriters and generate secure invite links for your institution.'
+              ? 'Manage authorized underwriters and generate secure invite links for your company.'
               : 'Autonomous multi-agent risk evaluation queue and decision verification.'}
           </p>
         </div>
@@ -207,7 +207,7 @@ function ReviewerDashboard({ user, company }) {
               </span>
             </div>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: 0, lineHeight: 1.4 }}>
-              Share this dedicated link with merchant applicants. All submissions are automatically tagged and isolated to your institution's review queue.
+              Share this dedicated link with merchant applicants. All submissions are automatically tagged and isolated to your company's review queue.
             </p>
             <div
               style={{

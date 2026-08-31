@@ -1,60 +1,34 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-
+import HeroParticleCluster from '../components/HeroParticleCluster';
 
 const techStackItems = [
-  'React',
   'Node.js',
   'Express',
   'SQLite',
-  'JWT',
-  'bcrypt',
-  'Python',
-  'Multi-Agent AI Pipeline',
-  'REST API'
+  'React',
+  'Gemini 1.5 Flash',
+  'Razorpay Fund Account Validation',
+  'pdf-parse',
+  'jsPDF',
+  'Multi-Agent Orchestration'
 ];
 
 const faqItems = [
   {
-    question: 'What is Verdika?',
+    question: 'How does Verdika ensure decisions are explainable?',
     answer:
-      'Verdika is an AI-powered underwriting platform that evaluates merchant credit applications using a 5-agent pipeline, providing explainable risk decisions with full human oversight for ambiguous or flagged cases.'
+      'Every underwriting decision generates a deterministic audit trail breaking down the weighted factor contributions from each agent. Reviewers see exact reason codes, anomaly markers, and confidence scores.'
   },
   {
-    question: 'How does Verdika make a decision?',
+    question: 'What is Adversarial Stress Testing?',
     answer:
-      "A merchant's transaction data is analyzed by specialized AI agents that compute risk signals, check for confidence/calibration, and detect signs of data manipulation. Based on this, an application is either auto-approved, auto-rejected, or routed to a human underwriter for review."
+      'The AdversarialAgent evaluates transaction sequences for synthetic revenue inflation, robotic velocity patterns, and manipulation attempts designed to bypass traditional credit filters.'
   },
   {
-    question:
-      'Why would my application be sent to a human reviewer instead of getting an instant decision?',
+    question: 'Can underwriters override AI recommendations?',
     answer:
-      "Applications are routed to a human reviewer whenever the AI's confidence is not high enough for an automatic decision, or when the system detects a pattern that requires manual verification. This ensures no consequential decision is made without appropriate certainty or oversight."
-  },
-  {
-    question: "If I'm rejected, will I know why?",
-    answer:
-      'Yes. Every rejection includes specific, real reasons — such as revenue volatility, refund rate compared to your industry, or business age — rather than a vague "denied" message.'
-  },
-  {
-    question: 'What is "adversarial detection"?',
-    answer:
-      "It's a system that checks whether submitted data shows signs of being artificially manipulated (for example, unnatural transaction spikes right before applying). This protects the integrity of the underwriting process for all applicants."
-  },
-  {
-    question: 'Is my business data secure?',
-    answer:
-      'Yes. All data is encrypted in transit, access to sensitive information is restricted by role (only authorized reviewers can see full risk details), and passwords are never stored in plain text.'
-  },
-  {
-    question: 'Who can see my application details?',
-    answer:
-      'You can see your own application\'s status and outcome. Only authorized human underwriters can see the full technical risk breakdown — this data is never shared with other applicants or unauthorized users.'
-  },
-  {
-    question: 'What happens after a human underwriter reviews my case?',
-    answer:
-      "The underwriter's decision is recorded alongside the AI's original recommendation in a permanent audit trail, and you'll see the final outcome on your dashboard."
+      'Yes. Reviewers have full authority to approve, reject, or request additional documentation, appending immutable review notes to the audit trail.'
   },
   {
     question: 'Can I reapply if my application is declined?',
@@ -65,13 +39,12 @@ const faqItems = [
     question:
       'Is Verdika a lending product, or does it decide loan approvals for a bank?',
     answer:
-      'Verdika is a risk-assessment and underwriting decision-support system — it evaluates and explains credit risk. Final lending policies and product terms are determined by the institution deploying it.'
+      'Verdika is a risk-assessment and underwriting decision-support system — it evaluates and explains credit risk. Final lending policies and product terms are determined by the finance company deploying it.'
   }
 ];
 
 export default function Landing() {
   const [openFaqIndex, setOpenFaqIndex] = useState(0);
-
 
   const toggleFaq = (index) => {
     setOpenFaqIndex((prev) => (prev === index ? null : index));
@@ -79,29 +52,36 @@ export default function Landing() {
 
   return (
     <div className="dashboard-container landing-container">
-      {/* Hero Section */}
-      <div className="landing-hero">
-        <div className="merchant-welcome-tag hero-badge">
-          ⚡ AUTOMATED MULTI-AGENT RISK ENGINE
+      {/* Hero Section with Left Content and Right Animated Particle Visual */}
+      <div className="landing-hero-wrapper">
+        <div className="landing-hero-content">
+          <div className="merchant-welcome-tag hero-badge">
+            ⚡ AUTOMATED MULTI-AGENT RISK ENGINE
+          </div>
+
+          <h1 className="landing-title">
+            Explainable AI Underwriting <br />
+            <span className="hero-gradient-text">for Modern Lenders</span>
+          </h1>
+
+          <p className="landing-subtitle">
+            Verdika deploys a specialized 5-agent AI pipeline to evaluate merchant credit applications 
+            with calibrated probabilistic risk scoring, adversarial fraud stress testing, and seamless human underwriter oversight.
+          </p>
+
+          <div className="hero-cta-group">
+            <Link to="/signup" className="new-app-btn hero-primary-btn">
+              Get Started <span className="btn-icon">→</span>
+            </Link>
+            <Link to="/login" className="btn-secondary hero-secondary-btn">
+              Sign In to Portal
+            </Link>
+          </div>
         </div>
 
-        <h1 className="landing-title">
-          Explainable AI Underwriting <br />
-          <span className="hero-gradient-text">for Modern Lenders</span>
-        </h1>
-
-        <p className="landing-subtitle">
-          Verdika deploys a specialized 5-agent AI pipeline to evaluate merchant credit applications 
-          with calibrated probabilistic risk scoring, adversarial fraud stress testing, and seamless human underwriter oversight.
-        </p>
-
-        <div className="hero-cta-group">
-          <Link to="/signup" className="new-app-btn hero-primary-btn">
-            Get Started <span className="btn-icon">→</span>
-          </Link>
-          <Link to="/login" className="btn-secondary hero-secondary-btn">
-            Sign In to Portal
-          </Link>
+        {/* Right Column: Abstract Ambient Particle Cluster */}
+        <div className="landing-hero-visual">
+          <HeroParticleCluster />
         </div>
       </div>
 

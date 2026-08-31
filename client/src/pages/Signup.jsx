@@ -12,24 +12,33 @@ export default function Signup() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { signup } = useAuth();
   const navigate = useNavigate();
 
+  const isPasswordMismatch = Boolean(confirmPassword && password !== confirmPassword);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
-    if (!companyName.trim() || !name.trim() || !email.trim() || !password) {
+    if (!companyName.trim() || !name.trim() || !email.trim() || !password || !confirmPassword) {
       setError('Please fill in all required fields.');
       return;
     }
 
     if (password.length < 8) {
       setError('Password must be at least 8 characters in length.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match. Please re-enter.');
       return;
     }
 
@@ -58,7 +67,7 @@ export default function Signup() {
         <div className="auth-header">
           <img src="/logo.png" alt="Verdika Logo" className="auth-logo-img" />
           <div className="auth-badge">Finance Company Onboarding</div>
-          <h2>Register Your Institution</h2>
+          <h2>Register Your Company</h2>
           <p className="auth-subtitle">
             Create your finance company account to deploy AI underwriting pipelines and generate dedicated public merchant application links.
           </p>
@@ -141,6 +150,53 @@ export default function Signup() {
                 )}
               </button>
             </div>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="confirmPassword">Confirm Password *</label>
+            <div className="password-input-wrapper">
+              <input
+                id="confirmPassword"
+                type={showConfirmPassword ? 'text' : 'password'}
+                placeholder="Re-enter your password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                autoComplete="new-password"
+                style={{
+                  borderColor: isPasswordMismatch ? '#ef4444' : (confirmPassword && password === confirmPassword ? '#10b981' : undefined)
+                }}
+              />
+              <button
+                type="button"
+                className="password-toggle-btn"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+              >
+                {showConfirmPassword ? (
+                  <svg className="password-eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                ) : (
+                  <svg className="password-eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                )}
+              </button>
+            </div>
+            {isPasswordMismatch && (
+              <span className="field-error-text" style={{ color: '#ef4444', fontSize: '0.78rem', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                ⚠️ Passwords do not match
+              </span>
+            )}
+            {confirmPassword && !isPasswordMismatch && (
+              <span style={{ color: '#10b981', fontSize: '0.78rem', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                ✓ Passwords match
+              </span>
+            )}
           </div>
 
           <button type="submit" className="auth-submit-btn" disabled={isSubmitting}>
