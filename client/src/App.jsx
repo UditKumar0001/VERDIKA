@@ -16,6 +16,7 @@ import Dashboard from './pages/Dashboard';
 import ApplicationDetail from './pages/ApplicationDetail';
 import NewApplication from './pages/NewApplication';
 import PublicApply from './pages/PublicApply';
+import ApplicationStatus from './pages/ApplicationStatus';
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
               <Route path="/apply/:companySlug" element={<PublicApply />} />
+              <Route path="/status/:applicationToken" element={<ApplicationStatus />} />
 
               {/* Protected Routes */}
               <Route

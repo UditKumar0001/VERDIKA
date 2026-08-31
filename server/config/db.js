@@ -121,6 +121,20 @@ const initSchema = async () => {
       summary TEXT DEFAULT '',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      application_id TEXT NOT NULL,
+      recipient_email TEXT NOT NULL,
+      recipient_name TEXT,
+      subject TEXT NOT NULL,
+      decision TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'sent',
+      content_html TEXT,
+      error TEXT,
+      sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `;
 
   await db.exec(schemaSql);

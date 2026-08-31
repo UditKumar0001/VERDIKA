@@ -160,3 +160,16 @@ export const validateBankAccountApi = async ({ account_number, ifsc, account_hol
   }
   return data;
 };
+
+export const fetchApplicationStatusApi = async (token) => {
+  const res = await fetch(`${API_BASE_URL}/underwriting/status/${token}`, {
+    method: 'GET'
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to fetch application status');
+  }
+  return data;
+};
+

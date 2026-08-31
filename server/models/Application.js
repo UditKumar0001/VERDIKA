@@ -91,6 +91,13 @@ export class Application {
     return Application.fromRow(row);
   }
 
+  static async findByIdOrToken(token) {
+    if (!token) return null;
+    const trimmed = token.trim();
+    const row = await db.get('SELECT * FROM applications WHERE id = ? OR id = ? OR LOWER(id) = LOWER(?)', [trimmed, trimmed.toUpperCase(), trimmed]);
+    return Application.fromRow(row);
+  }
+
   static async create(data) {
     const now = new Date().toISOString();
     const id = data.id || 'APP-' + crypto.randomUUID().slice(0, 8).toUpperCase();

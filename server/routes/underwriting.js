@@ -4,8 +4,10 @@ import { Application } from '../models/Application.js';
 import { AuditLog } from '../models/AuditLog.js';
 import { User } from '../models/User.js';
 import { Company } from '../models/Company.js';
+import { Notification } from '../models/Notification.js';
 import { agentPipeline } from '../services/agentPipeline.js';
 import { validateBankAccountRazorpay } from '../services/razorpayBankValidationService.js';
+import { sendDecisionNotification } from '../services/notificationService.js';
 import { validateApplicationInput } from '../utils/validators.js';
 import { logger } from '../utils/logger.js';
 
@@ -357,16 +359,100 @@ router.post('/applications/:id/review', requireAuth, async (req, res) => {
       summary
     });
 
+    // 3. Trigger automatic merchant notification email & audit record
+    let notificationResult = null;
+    try {
+      notificationResult = await sendDecisionNotification({
+        application: updatedApp,
+        decision: normalizedDecision,
+        customNotes: notes || ''
+      });
+    } catch (notifErr) {
+      logger.warn(`[Notification Warning] Failed to dispatch decision email for ${id}:`, notifErr.message);
+    }
+
     const auditLogs = await AuditLog.findByApplicationId(id);
 
     return res.json({
       message: `Application reviewed successfully as ${normalizedDecision}.`,
       application: updatedApp,
-      auditLogs
+      auditLogs,
+      notification: notificationResult?.notification || null
     });
   } catch (error) {
     logger.error(`[Underwriting Review Application ${req.params.id} Error]:`, error);
     return res.status(500).json({ error: 'Failed to submit review decision.' });
+  }
+});
+
+/**
+ * GET /api/underwriting/status/:token
+ * Public merchant status tracking endpoint (no authentication required).
+ * Accessible via unique application token or application ID.
+ */
+router.get('/status/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    if (!token) {
+      return res.status(400).json({ error: 'Application token is required.' });
+    }
+
+    const application = await Application.findByIdOrToken(token);
+    if (!application) {
+      return res.status(404).json({ error: 'Application not found with this tracking link.' });
+    }
+
+    const merchantData = application.merchant_data || {};
+    const bankDetails = merchantData.bank_details || {};
+
+    // Get company details if tenant-linked
+    let companyName = 'Verdika Capital';
+    if (application.company_id) {
+      const company = await Company.findById(application.company_id);
+      if (company) companyName = company.name;
+    }
+
+    // Public sanitized representation
+    const statusPayload = {
+      applicationId: application.id,
+      businessName: merchantData.business_name || 'Business Applicant',
+      businessCategory: merchantData.business_category || 'General',
+      gstin: merchantData.gstin || 'N/A',
+      companyName,
+      status: application.status,
+      decision: application.reviewer_decision || application.decision || 'UNDER_REVIEW',
+      applicantMessage: application.applicant_message,
+      createdAt: application.created_at,
+      updatedAt: application.updated_at,
+      dataSource: merchantData.data_source || 'Synthetic/Sample Data',
+      bankDetails: {
+        accountHolder: bankDetails.account_holder,
+        maskedAccountNumber: bankDetails.masked_account_number || (bankDetails.account_number ? 'XXXXXX' + String(bankDetails.account_number).slice(-4) : 'N/A'),
+        ifsc: bankDetails.ifsc,
+        bankName: bankDetails.bank_name,
+        verificationStatus: bankDetails.bankVerificationStatus || (bankDetails.bank_verification?.status) || 'Verified'
+      }
+    };
+
+    return res.json(statusPayload);
+  } catch (error) {
+    logger.error(`[Underwriting Public Status ${req.params.token} Error]:`, error);
+    return res.status(500).json({ error: 'Failed to retrieve application status.' });
+  }
+});
+
+/**
+ * GET /api/underwriting/applications/:id/notifications
+ * Returns all audit-logged email notifications for an application (reviewer view).
+ */
+router.get('/applications/:id/notifications', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const notifications = await Notification.findByApplicationId(id);
+    return res.json({ notifications, total: notifications.length });
+  } catch (error) {
+    logger.error(`[Underwriting Notifications ${req.params.id} Error]:`, error);
+    return res.status(500).json({ error: 'Failed to retrieve notifications.' });
   }
 });
 
