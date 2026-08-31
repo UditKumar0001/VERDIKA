@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import HeroParticleCluster from '../components/HeroParticleCluster';
 
 const techStackItems = [
   'Node.js',
@@ -52,36 +51,29 @@ export default function Landing() {
 
   return (
     <div className="dashboard-container landing-container">
-      {/* Hero Section with Left Content and Right Animated Particle Visual */}
-      <div className="landing-hero-wrapper">
-        <div className="landing-hero-content">
-          <div className="merchant-welcome-tag hero-badge">
-            ⚡ AUTOMATED MULTI-AGENT RISK ENGINE
-          </div>
-
-          <h1 className="landing-title">
-            Explainable AI Underwriting <br />
-            <span className="hero-gradient-text">for Modern Lenders</span>
-          </h1>
-
-          <p className="landing-subtitle">
-            Verdika deploys a specialized 5-agent AI pipeline to evaluate merchant credit applications 
-            with calibrated probabilistic risk scoring, adversarial fraud stress testing, and seamless human underwriter oversight.
-          </p>
-
-          <div className="hero-cta-group">
-            <Link to="/signup" className="new-app-btn hero-primary-btn">
-              Get Started <span className="btn-icon">→</span>
-            </Link>
-            <Link to="/login" className="btn-secondary hero-secondary-btn">
-              Sign In to Portal
-            </Link>
-          </div>
+      {/* Clean Centered Hero Section */}
+      <div className="landing-hero">
+        <div className="merchant-welcome-tag hero-badge">
+          ⚡ AUTOMATED MULTI-AGENT RISK ENGINE
         </div>
 
-        {/* Right Column: Abstract Ambient Particle Cluster */}
-        <div className="landing-hero-visual">
-          <HeroParticleCluster />
+        <h1 className="landing-title">
+          Explainable AI Underwriting <br />
+          <span className="hero-gradient-text">for Modern Lenders</span>
+        </h1>
+
+        <p className="landing-subtitle">
+          Verdika deploys a specialized 5-agent AI pipeline to evaluate merchant credit applications 
+          with calibrated probabilistic risk scoring, adversarial fraud stress testing, and seamless human underwriter oversight.
+        </p>
+
+        <div className="hero-cta-group">
+          <Link to="/signup" className="new-app-btn hero-primary-btn">
+            Get Started <span className="btn-icon">→</span>
+          </Link>
+          <Link to="/login" className="btn-secondary hero-secondary-btn">
+            Sign In to Portal
+          </Link>
         </div>
       </div>
 
