@@ -5,6 +5,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
+import VerdiChatbot from './components/VerdiChatbot';
 import './App.css';
 
 // Pages
@@ -58,6 +59,8 @@ function App() {
             </Routes>
           </main>
           <Footer />
+          {/* Floating AI Chatbot Assistant (Visible on all pages) */}
+          <VerdiChatbot />
         </Router>
       </AuthProvider>
     </ThemeProvider>
