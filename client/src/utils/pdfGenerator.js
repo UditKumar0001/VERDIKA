@@ -2,6 +2,20 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 /**
+ * Helper to safely break and split text for jsPDF without clipping or overflow.
+ * Replaces unbroken sequences (slashes, hyphens, em-dashes, commas) with breakable points.
+ */
+function wrapAndSplitText(doc, text, maxWidth) {
+  if (!text) return [];
+  const clean = String(text)
+    .replace(/—/g, ' — ')
+    .replace(/([/_,-])/g, '$1 ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return doc.splitTextToSize(clean, maxWidth);
+}
+
+/**
  * Generates and triggers download of a clean, professional Underwriting Assessment PDF Report.
  * 
  * @param {Object} application - Application record including merchant_data, risk_result, etc.
@@ -19,7 +33,7 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
   const pageWidth = 210;
   const pageHeight = 297;
   const marginX = 14;
-  const contentWidth = pageWidth - marginX * 2;
+  const contentWidth = pageWidth - marginX * 2; // 182 mm
   let y = 14;
 
   // Helper to parse JSON safely
@@ -94,13 +108,25 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
   const reuploadDocs = allDocStatuses.filter((d) => d.status === 'Needs Re-upload').map((d) => d.title);
   const hasDocIssues = missingDocs.length > 0 || reuploadDocs.length > 0;
 
+  // Check Commercial Bank Settlement Details
+  const hasAccountHolder = Boolean(bankDetails.account_holder && bankDetails.account_holder.trim().length > 0);
+  const hasAccountNumber = Boolean(bankDetails.account_number && String(bankDetails.account_number).trim().length > 0);
+  const hasIfsc = Boolean(bankDetails.ifsc && bankDetails.ifsc.trim().length > 0);
+  const hasBankDetails = hasAccountHolder && hasAccountNumber && hasIfsc;
+
+  const totalRequiredDocs = 4; // GST, PAN, Statement, Bank Details
+  const missingTotalList = [...missingDocs];
+  if (!hasBankDetails) {
+    missingTotalList.push('Bank Account Settlement Details');
+  }
+
   // ==========================================
   // REVIEWER RECOMMENDATION SYNTHESIS LOGIC
   // ==========================================
   let recType = 'APPROVE'; // 'APPROVE' | 'MANUAL_REVIEW' | 'REJECT'
   if (riskScore > 0.55 || isAdversarial) {
     recType = 'REJECT';
-  } else if (hasDocIssues || riskScore >= 0.25) {
+  } else if (hasDocIssues || !hasBankDetails || riskScore >= 0.25) {
     recType = 'MANUAL_REVIEW';
   } else {
     recType = 'APPROVE';
@@ -124,46 +150,28 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
     ? [254, 242, 242]
     : [255, 251, 235];
 
-  // 2-3 sentence plain-English synthesized summary
+  // 2-3 sentence genuinely detailed plain-English synthesized summary
   const generateSynthesisText = () => {
-    let revenueSentence = '';
-    if (riskScore < 0.25) {
-      revenueSentence = `This merchant shows strong revenue patterns with low financial volatility (${(riskScore * 100).toFixed(1)}% risk score)`;
-    } else if (riskScore <= 0.55) {
-      revenueSentence = `This merchant displays moderate revenue variance and borderline credit metrics (${(riskScore * 100).toFixed(1)}% risk score)`;
-    } else {
-      revenueSentence = `This merchant exhibits elevated transaction risk (${(riskScore * 100).toFixed(1)}% risk score) with elevated refund rates or revenue volatility`;
-    }
-
-    const advPhrase = isAdversarial
-      ? 'and failed adversarial stress testing due to potential data manipulation patterns'
-      : 'and passed adversarial integrity checks';
-
-    let docSentence = '';
-    if (missingDocs.length > 0 && reuploadDocs.length > 0) {
-      docSentence = `However, ${missingDocs.length} required document(s) (${missingDocs.join(', ')}) are missing, and ${reuploadDocs.join(', ')} require(s) re-upload due to quality issues.`;
-    } else if (missingDocs.length > 0) {
-      docSentence = `However, ${missingDocs.length} of 3 required KYC document(s) (${missingDocs.join(', ')}) are missing.`;
-    } else if (reuploadDocs.length > 0) {
-      docSentence = `However, ${reuploadDocs.join(', ')} failed quality checks and require(s) re-upload before verification.`;
-    } else {
-      docSentence = 'All required KYC documents (GST Certificate, PAN Card, Bank Statement) and settlement accounts are fully verified.';
-    }
-
-    let actionSentence = '';
-    if (recType === 'APPROVE') {
-      actionSentence = 'Recommend immediate approval for merchant onboarding and standard credit limits.';
-    } else if (recType === 'REJECT') {
-      actionSentence = 'Recommend declining this application due to elevated portfolio risk parameters.';
-    } else {
-      if (missingDocs.length > 0 || reuploadDocs.length > 0) {
-        actionSentence = 'Recommend routing to manual review until missing KYC documents are submitted before final approval.';
-      } else {
-        actionSentence = 'Recommend routing to manual review for underwriter evaluation of borderline risk metrics.';
+    if (recType === 'MANUAL_REVIEW') {
+      if (missingTotalList.length > 0) {
+        const missingCount = missingTotalList.length;
+        const missingNames = missingTotalList.join(', ');
+        const riskDesc = riskScore < 0.35 ? `favorable risk score of ${(riskScore * 100).toFixed(1)}%` : `risk score of ${(riskScore * 100).toFixed(1)}%`;
+        const advDesc = isAdversarial ? 'an adversarial flag' : 'a clean adversarial check';
+        return `This application cannot be auto-approved because ${missingCount} of ${totalRequiredDocs} required documents (${missingNames}) are missing, despite a ${riskDesc} and ${advDesc}. Once documents are submitted and verified, this application is likely to qualify for approval based on its financial profile.`;
       }
+      if (reuploadDocs.length > 0) {
+        return `This application requires manual review because ${reuploadDocs.join(', ')} failed resolution or page quality checks and require(s) re-upload. Revenue metrics remain within acceptable thresholds (${(riskScore * 100).toFixed(1)}% risk score).`;
+      }
+      return `This application shows borderline financial volatility (${(riskScore * 100).toFixed(1)}% risk score) requiring underwriter judgment before finalizing credit facility terms. All KYC documents are present.`;
     }
 
-    return `${revenueSentence} ${advPhrase}. ${docSentence} ${actionSentence}`;
+    if (recType === 'REJECT') {
+      const advNotice = isAdversarial ? 'and triggered critical adversarial data manipulation flags' : 'under multi-agent underwriting parameters';
+      return `Recommend declining this application due to elevated portfolio risk score (${(riskScore * 100).toFixed(1)}%) ${advNotice}. Transaction volatility and refund distributions exceed policy underwriting tolerances.`;
+    }
+
+    return `This merchant demonstrates strong, consistent revenue velocity, a low credit risk score of ${(riskScore * 100).toFixed(1)}%, and passed all adversarial and KYC document quality checks. Recommend immediate approval for standard credit disbursement.`;
   };
 
   const recommendationSummary = generateSynthesisText();
@@ -236,8 +244,8 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
   // ==========================================
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
-  const splitRecSummary = doc.splitTextToSize(recommendationSummary, contentWidth - 12);
-  const recTextHeight = splitRecSummary.length * 4.0;
+  const splitRecSummary = wrapAndSplitText(doc, recommendationSummary, contentWidth - 14);
+  const recTextHeight = splitRecSummary.length * 4.2;
   const recCardHeight = Math.max(26, 14 + recTextHeight + 4);
 
   // Card Background
@@ -266,7 +274,7 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
   doc.setTextColor(100, 116, 139);
   doc.text('EXECUTIVE UNDERWRITER SYNTHESIS', marginX + 12 + badgeWidth + 4, y + 9.2);
 
-  // Plain-English Synthesized Summary Paragraph
+  // Plain-English Synthesized Summary Paragraph (strictly left-aligned, no stretching)
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(51, 65, 85);
@@ -317,7 +325,9 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
     styles: {
       fontSize: 8.5,
       cellPadding: 2,
-      textColor: [30, 41, 59]
+      textColor: [30, 41, 59],
+      overflow: 'linebreak',
+      halign: 'left'
     },
     columnStyles: {
       0: { cellWidth: 38 },
@@ -420,7 +430,9 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
     styles: {
       fontSize: 8.5,
       cellPadding: 2,
-      textColor: [30, 41, 59]
+      textColor: [30, 41, 59],
+      overflow: 'linebreak',
+      halign: 'left'
     },
     columnStyles: {
       0: { cellWidth: 40 },
@@ -486,7 +498,7 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
 
   y += 18;
 
-  // Reason Codes List
+  // Reason Codes List with Safe Line Wrapping
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(71, 85, 105);
@@ -501,21 +513,22 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
     y += 5;
   } else {
     reasonCodes.forEach((rc) => {
-      ensureSpace(8);
       const codeName = rc.code || rc.factor || 'RISK_FACTOR';
       const codeDesc = rc.description || rc.details || 'Risk factor triggered.';
       const weightText = rc.weight ? ` (+${rc.weight} weight)` : '';
+      const fullReasonStr = `• [${codeName}]${weightText}: ${codeDesc}`;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      const splitReason = wrapAndSplitText(doc, fullReasonStr, contentWidth - 8);
+      const reasonHeight = splitReason.length * 4.2;
+
+      ensureSpace(reasonHeight + 2);
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
       doc.setTextColor(220, 38, 38);
-      doc.text(`• [${codeName}]${weightText}: `, marginX + 3, y);
-
-      const labelWidth = doc.getTextWidth(`• [${codeName}]${weightText}: `);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(51, 65, 85);
-      doc.text(codeDesc, marginX + 3 + labelWidth, y);
-      y += 4.5;
+      doc.text(splitReason, marginX + 3, y);
+      y += reasonHeight + 1.5;
     });
   }
 
@@ -524,7 +537,7 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
   // ==========================================
   // 6. ADVERSARIAL INTEGRITY & STRESS TEST
   // ==========================================
-  ensureSpace(24);
+  ensureSpace(28);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
@@ -537,26 +550,32 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
   const advBoxBorder = isAdversarial ? [239, 68, 68] : [16, 185, 129];
   const advFlagText = isAdversarial ? 'FLAGGED - Potential Data Manipulation Detected' : 'CLEAN - Data Integrity Verified';
 
+  let advSummaryText = 'Stress tests confirmed authentic velocity patterns, non-linear revenue trends, and organic settlement timelines.';
+  if (isAdversarial && detectedPatterns.length > 0) {
+    const patternSummary = detectedPatterns.map((p) => p.pattern || p.evidence || 'Anomaly').join('; ');
+    advSummaryText = `Identified Anomaly Patterns: ${patternSummary}`;
+  }
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  const splitAdvSummary = wrapAndSplitText(doc, advSummaryText, contentWidth - 12);
+  const advCardHeight = Math.max(14, 8 + splitAdvSummary.length * 3.8);
+
   doc.setFillColor(advBoxBg[0], advBoxBg[1], advBoxBg[2]);
   doc.setDrawColor(advBoxBorder[0], advBoxBorder[1], advBoxBorder[2]);
-  doc.roundedRect(marginX, y, contentWidth, 12, 1.5, 1.5, 'FD');
+  doc.roundedRect(marginX, y, contentWidth, advCardHeight, 1.5, 1.5, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setTextColor(advBoxBorder[0], advBoxBorder[1], advBoxBorder[2]);
-  doc.text(`Adversarial Status: ${advFlagText}`, marginX + 5, y + 5);
+  doc.text(`Adversarial Status: ${advFlagText}`, marginX + 5, y + 4.5);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
-  if (isAdversarial && detectedPatterns.length > 0) {
-    const patternSummary = detectedPatterns.map((p) => p.pattern || p.evidence || 'Anomaly').join('; ');
-    doc.text(`Identified Anomaly Patterns: ${patternSummary}`, marginX + 5, y + 9.5);
-  } else {
-    doc.text('Stress tests confirmed authentic velocity patterns, non-linear revenue trends, and organic settlement timelines.', marginX + 5, y + 9.5);
-  }
+  doc.text(splitAdvSummary, marginX + 5, y + 9);
 
-  y += 18;
+  y += advCardHeight + 6;
 
   // ==========================================
   // 7. AGENT-BY-AGENT REASONING BLOCKS
@@ -630,11 +649,12 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
       }))
     : defaultAgentTraces.map((t) => ({ ...t, summary: formatAgentSummary(t.summary) }));
 
-  // Render each Agent block with dynamic height & proper page break protection
+  // Render each Agent block with safe text wrapping & page break protection
   agentListToRender.forEach((agent) => {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
-    const splitSummary = doc.splitTextToSize(agent.summary, contentWidth - 12);
+    // Safe text width with ample 8mm inner padding on each side (182 - 16 = 166mm)
+    const splitSummary = wrapAndSplitText(doc, agent.summary, contentWidth - 16);
 
     const lineHeight = 3.8;
     const textBlockHeight = splitSummary.length * lineHeight;
@@ -642,7 +662,7 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
     const cardHeaderHeight = hasRole ? 10.5 : 7.0;
     const totalCardHeight = Math.max(16, cardHeaderHeight + textBlockHeight + 3.5);
 
-    // Avoid splitting card across pages (page-break-inside: avoid)
+    // Avoid splitting card across pages
     ensureSpace(totalCardHeight + 3);
 
     // Draw Card Background
@@ -676,7 +696,7 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
       doc.text(agent.role, marginX + 6, y + 8.5);
     }
 
-    // Line 3+: Formatted Summary Text
+    // Line 3+: Formatted Summary Text (strictly left-aligned, no stretching)
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(51, 65, 85);
@@ -703,9 +723,10 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
   }
 
   // ==========================================
-  // 9. FILE DOWNLOAD TRIGGER
+  // 9. FILE DOWNLOAD TRIGGER / SAVE
   // ==========================================
   const sanitizedName = businessName.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40);
   const filename = `report-${sanitizedName}-${applicationId}.pdf`;
   doc.save(filename);
+  return doc;
 }
