@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { fetchApplicationById, submitReviewDecision } from '../api/applicationApi';
+import { generateUnderwritingReportPDF } from '../utils/pdfGenerator';
 
 export default function ApplicationDetail() {
   const { id } = useParams();
@@ -9,6 +10,7 @@ export default function ApplicationDetail() {
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
 
   // Form state for reviewer decision
   const [notes, setNotes] = useState('');
@@ -50,6 +52,17 @@ export default function ApplicationDetail() {
       setActionError(err.message || `Failed to submit ${decisionType} decision.`);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDownloadPdf = () => {
+    try {
+      setGeneratingPdf(true);
+      generateUnderwritingReportPDF(application, auditLogs);
+    } catch (err) {
+      console.error('PDF Generation Error:', err);
+    } finally {
+      setTimeout(() => setGeneratingPdf(false), 500);
     }
   };
 
@@ -128,16 +141,30 @@ export default function ApplicationDetail() {
           </p>
         </div>
 
-        <div className="header-status-badge-container">
-          {isClosed ? (
-            <span className="badge badge-approved">
-              <span className="badge-dot dot-approved"></span> Status: Closed
-            </span>
-          ) : (
-            <span className="badge badge-review">
-              <span className="badge-dot dot-review"></span> Status: Pending Review
-            </span>
-          )}
+        <div className="header-actions-group">
+          <button
+            type="button"
+            id="download-report-btn"
+            className="btn-download-report"
+            onClick={handleDownloadPdf}
+            disabled={generatingPdf}
+            title="Download full underwriting assessment report as PDF"
+          >
+            <span className="btn-icon">📥</span>
+            <span>{generatingPdf ? 'Generating PDF...' : 'Download Full Report (PDF)'}</span>
+          </button>
+
+          <div className="header-status-badge-container">
+            {isClosed ? (
+              <span className="badge badge-approved">
+                <span className="badge-dot dot-approved"></span> Status: Closed
+              </span>
+            ) : (
+              <span className="badge badge-review">
+                <span className="badge-dot dot-review"></span> Status: Pending Review
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -238,6 +265,93 @@ export default function ApplicationDetail() {
               </div>
             )}
           </div>
+
+          {/* Bank & Settlement Details Card (if available) */}
+          {merchantData.bank_details && (
+            <div className="dashboard-card">
+              <h2 className="card-title" style={{ marginBottom: '1rem' }}>
+                🏦 Commercial Bank & Settlement Profile
+              </h2>
+              <div className="review-grid">
+                <div className="review-item">
+                  <span className="review-item-label">Account Holder</span>
+                  <span className="review-item-value font-semibold">{merchantData.bank_details.account_holder || merchantData.business_name || 'N/A'}</span>
+                </div>
+                <div className="review-item">
+                  <span className="review-item-label">Account Number</span>
+                  <span className="review-item-value font-mono text-cyan">
+                    {merchantData.bank_details.masked_account_number || (merchantData.bank_details.account_number ? 'XXXXXX' + String(merchantData.bank_details.account_number).slice(-4) : 'N/A')}
+                  </span>
+                </div>
+                <div className="review-item">
+                  <span className="review-item-label">IFSC Code</span>
+                  <span className="review-item-value font-mono">{merchantData.bank_details.ifsc || 'N/A'}</span>
+                </div>
+                <div className="review-item">
+                  <span className="review-item-label">Bank & Branch</span>
+                  <span className="review-item-value">
+                    {merchantData.bank_details.bank_name ? `${merchantData.bank_details.bank_name}${merchantData.bank_details.branch ? ` (${merchantData.bank_details.branch})` : ''}` : 'Verified Commercial Bank'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Verified KYC Documents Card (if available) */}
+          {merchantData.documents && (
+            <div className="dashboard-card">
+              <h2 className="card-title" style={{ marginBottom: '1rem' }}>
+                📁 Verified Merchant Documentation
+              </h2>
+              <div className="doc-checklist">
+                {merchantData.documents.gst_certificate && (
+                  <div className="checklist-item">
+                    <div className="checklist-status-icon"><span className="check-success">✓</span></div>
+                    <div className="checklist-info">
+                      <div className="checklist-doc-title">
+                        GST Registration Certificate
+                        <span className="doc-verified-pill">Verified</span>
+                      </div>
+                      <div className="checklist-doc-sub">
+                        {merchantData.documents.gst_certificate.name || 'GST_Certificate.pdf'}
+                        {merchantData.documents.gst_certificate.sizeFormatted && ` (${merchantData.documents.gst_certificate.sizeFormatted})`}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {merchantData.documents.pan_card && (
+                  <div className="checklist-item">
+                    <div className="checklist-status-icon"><span className="check-success">✓</span></div>
+                    <div className="checklist-info">
+                      <div className="checklist-doc-title">
+                        Company / Signatory PAN Card
+                        <span className="doc-verified-pill">Verified</span>
+                      </div>
+                      <div className="checklist-doc-sub">
+                        {merchantData.documents.pan_card.name || 'PAN_Card.png'}
+                        {merchantData.documents.pan_card.sizeFormatted && ` (${merchantData.documents.pan_card.sizeFormatted})`}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {merchantData.documents.bank_statement && (
+                  <div className="checklist-item">
+                    <div className="checklist-status-icon"><span className="check-success">✓</span></div>
+                    <div className="checklist-info">
+                      <div className="checklist-doc-title">
+                        Bank Statement (Last 6 Months)
+                        <span className="doc-verified-pill">Verified</span>
+                      </div>
+                      <div className="checklist-doc-sub">
+                        {merchantData.documents.bank_statement.name || 'Bank_Statement.pdf'}
+                        {merchantData.documents.bank_statement.sizeFormatted && ` (${merchantData.documents.bank_statement.sizeFormatted})`}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Underwriter Action Panel OR Closed Decision Summary */}
           {isPending ? (

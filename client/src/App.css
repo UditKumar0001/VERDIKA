@@ -766,6 +766,45 @@
   filter: brightness(1.08);
 }
 
+.header-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.btn-download-report {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.18) 0%, rgba(59, 130, 246, 0.22) 100%);
+  border: 1px solid rgba(6, 182, 212, 0.45);
+  color: var(--text-main);
+  font-weight: 700;
+  font-size: 0.88rem;
+  padding: 0.55rem 1.15rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(6, 182, 212, 0.15);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-download-report:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.3) 0%, rgba(59, 130, 246, 0.35) 100%);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 4px 16px rgba(6, 182, 212, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-download-report:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-download-report .btn-icon {
+  font-size: 1.1rem;
+}
+
 .btn-secondary {
   display: inline-flex;
   align-items: center;
@@ -1065,6 +1104,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  margin-bottom: 1.5rem;
 }
 
 .preset-toolbar-header {
@@ -1133,6 +1173,611 @@
   border-color: rgba(245, 158, 11, 0.6);
   background: rgba(245, 158, 11, 0.1);
   color: #f59e0b;
+}
+
+/* --- Multi-Step Wizard Stepper --- */
+.wizard-stepper-container {
+  max-width: 840px;
+  margin: 0 auto 1.5rem auto;
+}
+
+.wizard-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 12px;
+  padding: 0.85rem 1.5rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.wizard-step-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: all 0.2s ease;
+}
+
+.wizard-step-item.active {
+  opacity: 1;
+}
+
+.wizard-step-item.completed {
+  opacity: 0.9;
+}
+
+.wizard-step-item:hover {
+  opacity: 1;
+}
+
+.step-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-input);
+  border: 2px solid var(--border-card);
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.wizard-step-item.active .step-circle {
+  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-indigo) 100%);
+  border-color: var(--accent-blue);
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+}
+
+.wizard-step-item.completed .step-circle {
+  background: var(--status-approved-bg);
+  border-color: var(--status-approved);
+  color: var(--status-approved);
+}
+
+.step-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.step-num {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+}
+
+.wizard-step-item.active .step-num {
+  color: var(--accent-cyan);
+}
+
+.step-label {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+}
+
+.step-connector {
+  flex: 1;
+  height: 2px;
+  background: var(--border-card);
+  margin: 0 1rem;
+  transition: background 0.25s ease;
+}
+
+.step-connector.active {
+  background: linear-gradient(90deg, var(--status-approved) 0%, var(--accent-blue) 100%);
+}
+
+/* Step Panel & Headers */
+.step-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.step-header {
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.step-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 0.25rem;
+}
+
+.step-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+/* Form inputs & helpers */
+.label-sub {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--accent-cyan);
+  text-transform: none;
+}
+
+.field-hint {
+  font-size: 0.74rem;
+  color: var(--text-dim);
+  margin-top: 0.2rem;
+}
+
+.field-error-msg {
+  font-size: 0.76rem;
+  color: var(--status-rejected);
+  margin-top: 0.2rem;
+  font-weight: 500;
+}
+
+.input-error {
+  border-color: var(--status-rejected) !important;
+  background: rgba(239, 68, 68, 0.05) !important;
+}
+
+.uppercase-input {
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.input-with-loader {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.input-with-loader input {
+  padding-right: 2.5rem !important;
+}
+
+.inline-spinner {
+  position: absolute;
+  right: 0.85rem;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(59, 130, 246, 0.2);
+  border-top-color: var(--accent-blue);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+/* Verified IFSC Card */
+.ifsc-lookup-card {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, rgba(59, 130, 246, 0.04) 100%);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  border-radius: 10px;
+  padding: 1.1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  animation: fadeIn 0.25s ease-out;
+}
+
+.ifsc-lookup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(6, 182, 212, 0.15);
+  padding-bottom: 0.5rem;
+}
+
+.ifsc-badge-tag {
+  font-size: 0.8rem;
+}
+
+.ifsc-api-source {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.ifsc-lookup-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.85rem;
+}
+
+.ifsc-detail-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.ifsc-detail-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+}
+
+.ifsc-detail-val {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+/* --- Document Upload Grid --- */
+.documents-upload-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+}
+
+.doc-upload-card {
+  background: var(--bg-input);
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  transition: border-color 0.2s ease;
+}
+
+.doc-upload-card:hover {
+  border-color: var(--border-focus);
+}
+
+.doc-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.doc-type-icon {
+  font-size: 1.75rem;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.doc-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.doc-specs {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Dropzone */
+.upload-dropzone {
+  border: 2px dashed var(--border-card);
+  border-radius: 8px;
+  padding: 1.25rem 1rem;
+  text-align: center;
+  cursor: pointer;
+  background: rgba(14, 22, 38, 0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.2s ease;
+}
+
+.upload-dropzone:hover {
+  border-color: var(--accent-blue);
+  background: rgba(59, 130, 246, 0.04);
+}
+
+.dropzone-icon {
+  font-size: 1.75rem;
+}
+
+.dropzone-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.dropzone-hint {
+  font-size: 0.74rem;
+  color: var(--text-dim);
+}
+
+/* File Preview Box */
+.file-preview-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.file-preview-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.file-icon-badge {
+  font-size: 1.35rem;
+}
+
+.file-info-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.file-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-size {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+.upload-progress-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.upload-progress-bar {
+  height: 5px;
+  background: var(--bg-input);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.upload-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-blue), var(--status-approved));
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.upload-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.upload-badge-success {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--status-approved);
+}
+
+.upload-badge-loading {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--accent-cyan);
+}
+
+.btn-remove-file {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+}
+
+.btn-remove-file:hover {
+  color: var(--status-rejected);
+  background: var(--status-rejected-bg);
+}
+
+.doc-error-alert {
+  font-size: 0.78rem;
+  color: var(--status-rejected);
+  background: var(--status-rejected-bg);
+  border: 1px solid var(--status-rejected-border);
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+}
+
+/* --- Step 4 Review & Confirmation --- */
+.review-section-card {
+  background: var(--bg-input);
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.review-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 0.6rem;
+}
+
+.review-section-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-review-edit {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent-blue);
+  padding: 0.25rem 0.6rem;
+  border-radius: 4px;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  background: rgba(59, 130, 246, 0.08);
+  transition: all 0.15s ease;
+}
+
+.btn-review-edit:hover {
+  background: rgba(59, 130, 246, 0.18);
+  border-color: var(--accent-blue);
+}
+
+.review-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+}
+
+.review-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.review-item-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+}
+
+.review-item-value {
+  font-size: 0.9rem;
+  color: var(--text-main);
+}
+
+.review-badge-row {
+  margin-top: 0.25rem;
+}
+
+/* Document Checklist */
+.doc-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.checklist-status-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.check-success {
+  background: var(--status-approved-bg);
+  border: 1px solid var(--status-approved-border);
+  color: var(--status-approved);
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.check-optional {
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  color: var(--text-dim);
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checklist-info {
+  flex: 1;
+}
+
+.checklist-doc-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.doc-verified-pill {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0.1rem 0.4rem;
+  background: var(--status-approved-bg);
+  color: var(--status-approved);
+  border-radius: 4px;
+  border: 1px solid var(--status-approved-border);
+}
+
+.checklist-doc-sub {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-top: 0.1rem;
+}
+
+/* Wizard Navigation Actions */
+.wizard-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+/* Verified settlement row on result banner */
+.verified-settlement-row {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 8px;
+  padding: 0.85rem 1.15rem;
+  margin-top: 0.5rem;
+}
+
+.settlement-item {
+  font-size: 0.85rem;
 }
 
 .apply-form {

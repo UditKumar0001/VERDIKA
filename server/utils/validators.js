@@ -25,8 +25,8 @@ export const validateSignupInput = (data = {}) => {
     errors.push('Password must be at least 8 characters.');
   }
 
-  if (role && !['underwriter', 'admin', 'risk_officer', 'viewer'].includes(role)) {
-    errors.push('Role must be one of: underwriter, admin, risk_officer, viewer.');
+  if (role && !['underwriter', 'admin', 'risk_officer', 'viewer', 'merchant'].includes(role)) {
+    errors.push('Role must be one of: merchant, underwriter, admin, risk_officer, viewer.');
   }
 
   return {

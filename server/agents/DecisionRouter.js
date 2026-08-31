@@ -16,20 +16,34 @@ export class DecisionRouter extends BaseAgent {
    * @returns {Promise<Object>} Final routing decision (APPROVED, REJECTED, MANUAL_REVIEW) with decision rationale.
    */
   async run(input) {
-    const { risk, adv } = input;
+    const { risk, adv, doc } = input;
     const response = {
       agent: this.name,
       status: 'completed',
       decision: 'route_to_human',
       routingReason: ''
     };
-    // If adversarial patterns detected, always route to human
+
+    // 1. If adversarial patterns detected, always route to human
     if (adv && adv.adversarialFlag) {
       response.routingReason = `Adversarial patterns detected: ${adv.detectedPatterns.map(p => p.pattern).join(', ')}`;
       return response;
     }
+
+    // 2. If KYC / Document verification is Incomplete, Needs Review, or Invalid Format, route to human
+    if (doc && doc.status && doc.status !== 'Verified') {
+      response.decision = 'route_to_human';
+      response.routingReason = doc.status === 'Needs Review'
+        ? 'KYC document quality issues detected — requires re-upload or manual review'
+        : doc.status === 'Incomplete'
+        ? 'Incomplete KYC documentation — flagged for manual review'
+        : 'KYC format validation errors require manual verification';
+      return response;
+    }
+
     const confidence = risk && typeof risk.confidence === 'number' ? risk.confidence : 0;
     const riskScore = risk && typeof risk.riskScore === 'number' ? risk.riskScore : 0;
+
     if (confidence > 0.75 && riskScore < 0.15) {
       response.decision = 'auto_approve';
       response.routingReason = 'High confidence and low risk score';

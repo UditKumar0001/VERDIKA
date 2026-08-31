@@ -1,4 +1,5 @@
 import { DataAgent } from '../agents/DataAgent.js';
+import { DocumentVerificationAgent } from '../agents/DocumentVerificationAgent.js';
 import { RiskAgent } from '../agents/RiskAgent.js';
 import { AdversarialAgent } from '../agents/AdversarialAgent.js';
 import { DecisionRouter } from '../agents/DecisionRouter.js';
@@ -12,6 +13,7 @@ import { logger } from '../utils/logger.js';
 export class AgentPipeline {
   constructor() {
     this.dataAgent = new DataAgent();
+    this.docVerificationAgent = new DocumentVerificationAgent();
     this.riskAgent = new RiskAgent();
     this.adversarialAgent = new AdversarialAgent();
     this.decisionRouter = new DecisionRouter();
@@ -25,7 +27,7 @@ export class AgentPipeline {
    */
   async execute(applicationData) {
     const startTime = Date.now();
-    logger.info(`Starting underwriting pipeline for applicant: ${applicationData.applicantName || 'Unknown'}`);
+    logger.info(`Starting underwriting pipeline for applicant: ${applicationData.applicantName || applicationData.business_name || 'Unknown'}`);
 
     const auditLogs = [];
 
@@ -53,17 +55,37 @@ export class AgentPipeline {
     const enriched = await runAgentStep(
       this.dataAgent,
       applicationData,
-      (out) => `Data enriched and verified for ${applicationData.applicantName || 'Applicant'}`
+      (out) => `Data enriched and verified for ${applicationData.applicantName || applicationData.business_name || 'Applicant'}`
     );
 
-    // 2. Risk Assessment
+    // 2. Document & KYC Verification Agent
+    const docEval = await runAgentStep(
+      this.docVerificationAgent,
+      applicationData,
+      (out) => `Document & KYC verification: ${out.status} - ${out.summary}`
+    );
+
+    // 3. Risk Assessment
     const riskEval = await runAgentStep(
       this.riskAgent,
       enriched,
       (out) => `Risk assessed with score ${out.riskScore ?? 'N/A'} (Confidence: ${Math.round((out.confidence || 0.85) * 100)}%)`
     );
 
-    // 3. Adversarial Stress Testing
+    // Integrate Document Verification Reason Codes into risk reason codes list
+    if (docEval && Array.isArray(docEval.reasonCodes)) {
+      if (!Array.isArray(riskEval.reasonCodes)) {
+        riskEval.reasonCodes = [];
+      }
+      riskEval.reasonCodes = [...riskEval.reasonCodes, ...docEval.reasonCodes];
+    }
+
+    // Lower confidence if document verification is incomplete or invalid
+    if (docEval && docEval.status !== 'Verified') {
+      riskEval.confidence = Number(Math.min(riskEval.confidence || 0.85, 0.70).toFixed(2));
+    }
+
+    // 4. Adversarial Stress Testing
     const stressTest = await runAgentStep(
       this.adversarialAgent,
       { merchant: applicationData, features: enriched, risk: riskEval, riskEval },
@@ -76,17 +98,17 @@ export class AgentPipeline {
       riskEval.confidence = Number(Math.max(0.50, riskEval.confidence - advPenalty).toFixed(2));
     }
 
-    // 4. Decision Routing
+    // 5. Decision Routing (incorporating Document Verification Agent output)
     const decision = await runAgentStep(
       this.decisionRouter,
-      { risk: riskEval, adv: stressTest, enriched, riskEval, stressTest },
+      { risk: riskEval, adv: stressTest, doc: docEval, enriched, riskEval, stressTest },
       (out) => `Decision routed as ${out.decision || 'MANUAL_REVIEW'} - ${out.routingReason || out.routeReason || 'Policy evaluation completed'}`
     );
 
-    // 5. Explainability & Adverse Action Analysis
+    // 6. Explainability & Adverse Action Analysis
     const explanation = await runAgentStep(
       this.explainerAgent,
-      { risk: riskEval, adv: stressTest, decision: decision.decision, features: enriched },
+      { risk: riskEval, adv: stressTest, doc: docEval, decision: decision.decision, features: enriched },
       (out) => `Generated regulatory explanation: ${out.summary || 'Underwriting explanation drafted'}`
     );
 
@@ -111,6 +133,7 @@ export class AgentPipeline {
     // Construct result matching /apply route expectations
     const result = {
       features: enriched,
+      doc_result: docEval,
       risk_result: riskEval,
       adversarial_result: stressTest,
       decision: decision.decision || null,

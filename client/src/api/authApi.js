@@ -18,7 +18,10 @@ export const signup = async (userData) => {
 
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error || (data.details ? data.details.join(', ') : 'Registration failed'));
+    const errorDetails = data.details && Array.isArray(data.details) && data.details.length > 0
+      ? data.details.join(' ')
+      : data.error;
+    throw new Error(errorDetails || 'Registration failed');
   }
   return data;
 };
