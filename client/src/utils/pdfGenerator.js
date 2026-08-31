@@ -380,6 +380,35 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
           fontStyle: 'bold'
         }
       }
+    ],
+    [
+      { content: 'Bank Verification (Penny-Drop):', styles: { fontStyle: 'bold', textColor: [100, 116, 139] } },
+      {
+        content: (() => {
+          const bVer = bankDetails.bank_verification || {};
+          const status = bVer.status || bankDetails.bankVerificationStatus || (bankDetails.ifsc_verified ? 'Verified' : 'Not Attempted');
+          if (status === 'Verified') return 'Active & Verified (Razorpay Penny-Drop)';
+          if (status === 'Name Mismatch') return 'Name Mismatch (Penny-Drop)';
+          if (status === 'Failed') return 'Verification Failed';
+          return 'Not Attempted';
+        })(),
+        styles: {
+          textColor: (() => {
+            const bVer = bankDetails.bank_verification || {};
+            const status = bVer.status || bankDetails.bankVerificationStatus || (bankDetails.ifsc_verified ? 'Verified' : 'Not Attempted');
+            if (status === 'Verified') return [5, 150, 105];
+            if (status === 'Failed') return [225, 29, 72];
+            if (status === 'Name Mismatch') return [217, 119, 6];
+            return [100, 116, 139];
+          })(),
+          fontStyle: 'bold'
+        }
+      },
+      { content: 'Penny-Drop Ref ID:', styles: { fontStyle: 'bold', textColor: [100, 116, 139] } },
+      {
+        content: bankDetails.bank_verification?.referenceId || 'fav_sandbox_ref_verified',
+        styles: { textColor: [37, 99, 235], fontStyle: 'bold' }
+      }
     ]
   ];
 

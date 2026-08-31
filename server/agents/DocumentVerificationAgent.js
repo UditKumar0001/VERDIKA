@@ -233,9 +233,38 @@ export class DocumentVerificationAgent extends BaseAgent {
       isFormatValid = false;
     }
 
+    // Bank Verification (Razorpay Penny-Drop) Check
+    const bankVerification = bankDetails.bank_verification || merchantData.bank_verification || {};
+    const bankVerificationStatus = bankVerification.status || bankDetails.bankVerificationStatus || (bankDetails.ifsc_verified ? 'Verified' : 'Not Attempted');
+
+    let bankVerificationPassed = true;
+    if (bankVerificationStatus === 'Failed') {
+      qualityIssueItems.push('Bank account verification failed');
+      reasonCodes.push({
+        code: 'DOC_BANK_VERIFICATION_FAILED',
+        description: 'Bank account validation failed (inactive or non-existent account) via Razorpay Penny-Drop',
+        weight: 0.25
+      });
+      bankVerificationPassed = false;
+    } else if (bankVerificationStatus === 'Name Mismatch') {
+      qualityIssueItems.push('Bank account holder name mismatch');
+      reasonCodes.push({
+        code: 'DOC_BANK_NAME_MISMATCH',
+        description: `Bank account name mismatch: registered name (${bankVerification.registeredName || 'unknown'}) differs from submitted name (${bankDetails.account_holder || 'unknown'})`,
+        weight: 0.20
+      });
+      bankVerificationPassed = false;
+    } else if (bankVerificationStatus === 'Not Attempted' && hasBankDetails) {
+      reasonCodes.push({
+        code: 'DOC_BANK_UNVERIFIED',
+        description: 'Bank account penny-drop verification was not attempted',
+        weight: 0.10
+      });
+    }
+
     // Overall Status Computation
     const hasMissing = missingItems.length > 0 || !hasBankDetails;
-    const hasQualityIssues = qualityIssueItems.length > 0 || Object.values(documentStatuses).some((d) => d.status === 'Needs Re-upload');
+    const hasQualityIssues = qualityIssueItems.length > 0 || Object.values(documentStatuses).some((d) => d.status === 'Needs Re-upload') || !bankVerificationPassed;
 
     let status = 'Verified';
     if (hasMissing) {

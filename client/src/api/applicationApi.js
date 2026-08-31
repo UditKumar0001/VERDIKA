@@ -146,3 +146,17 @@ export const submitReviewDecision = async (id, { decision, notes }) => {
   }
   return data; // returns { message, application, auditLogs }
 };
+
+export const validateBankAccountApi = async ({ account_number, ifsc, account_holder }) => {
+  const res = await fetch(`${API_BASE_URL}/underwriting/validate-bank-account`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ account_number, ifsc, account_holder })
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to validate bank account');
+  }
+  return data;
+};

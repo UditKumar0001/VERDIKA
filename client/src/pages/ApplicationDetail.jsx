@@ -269,9 +269,42 @@ export default function ApplicationDetail() {
           {/* Bank & Settlement Details Card (if available) */}
           {merchantData.bank_details && (
             <div className="dashboard-card">
-              <h2 className="card-title" style={{ marginBottom: '1rem' }}>
-                🏦 Commercial Bank & Settlement Profile
-              </h2>
+              <div className="card-toolbar" style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <h2 className="card-title" style={{ margin: 0 }}>
+                  🏦 Commercial Bank & Settlement Profile
+                </h2>
+                {(() => {
+                  const bVer = merchantData.bank_details.bank_verification || {};
+                  const status = bVer.status || merchantData.bank_details.bankVerificationStatus || (merchantData.bank_details.ifsc_verified ? 'Verified' : 'Not Attempted');
+                  if (status === 'Verified') {
+                    return (
+                      <span className="badge badge-approved" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.35)', fontSize: '0.75rem' }}>
+                        ✓ Bank Account Active & Verified (Razorpay Penny-Drop)
+                      </span>
+                    );
+                  }
+                  if (status === 'Name Mismatch') {
+                    return (
+                      <span className="badge badge-review" style={{ fontSize: '0.75rem' }}>
+                        ⚠️ Name Mismatch (Penny-Drop)
+                      </span>
+                    );
+                  }
+                  if (status === 'Failed') {
+                    return (
+                      <span className="badge badge-rejected" style={{ fontSize: '0.75rem' }}>
+                        ✕ Verification Failed (Penny-Drop)
+                      </span>
+                    );
+                  }
+                  return (
+                    <span className="badge" style={{ fontSize: '0.75rem', background: 'rgba(100, 116, 139, 0.2)', color: 'var(--text-muted)' }}>
+                      ○ Not Verified
+                    </span>
+                  );
+                })()}
+              </div>
+
               <div className="review-grid">
                 <div className="review-item">
                   <span className="review-item-label">Account Holder</span>
@@ -293,6 +326,22 @@ export default function ApplicationDetail() {
                     {merchantData.bank_details.bank_name ? `${merchantData.bank_details.bank_name}${merchantData.bank_details.branch ? ` (${merchantData.bank_details.branch})` : ''}` : 'Verified Commercial Bank'}
                   </span>
                 </div>
+                {merchantData.bank_details.bank_verification?.referenceId && (
+                  <div className="review-item">
+                    <span className="review-item-label">Razorpay Penny-Drop Ref</span>
+                    <span className="review-item-value font-mono" style={{ fontSize: '0.78rem', color: 'var(--accent-cyan)' }}>
+                      {merchantData.bank_details.bank_verification.referenceId}
+                    </span>
+                  </div>
+                )}
+                {merchantData.bank_details.bank_verification?.registeredName && (
+                  <div className="review-item">
+                    <span className="review-item-label">Bank Registered Beneficiary</span>
+                    <span className="review-item-value font-semibold" style={{ fontSize: '0.85rem' }}>
+                      {merchantData.bank_details.bank_verification.registeredName}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           )}

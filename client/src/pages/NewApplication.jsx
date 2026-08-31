@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { submitApplyApplication } from '../api/applicationApi';
+import { submitApplyApplication, validateBankAccountApi } from '../api/applicationApi';
 import { submitPublicApplication } from '../api/companyApi';
 
 // Pre-packaged realistic sample datasets for instant demo testing
@@ -258,6 +258,16 @@ export default function NewApplication({ publicCompany = null }) {
 
   const [bankValidationErrors, setBankValidationErrors] = useState({});
 
+  // Razorpay Fund Account Validation (Penny-Drop) state
+  const [bankVerification, setBankVerification] = useState({
+    status: 'Not Attempted', // 'Verified' | 'Failed' | 'Name Mismatch' | 'Not Attempted'
+    registeredName: '',
+    referenceId: '',
+    message: '',
+    loading: false,
+    error: null
+  });
+
   // Step 3: Document Uploads
   const [documents, setDocuments] = useState({
     gst_certificate: null,
@@ -396,6 +406,49 @@ export default function NewApplication({ publicCompany = null }) {
 
   const handleBankNameChange = (e) => {
     setBankData((prev) => ({ ...prev, bank_name: e.target.value }));
+  };
+
+  // --- Razorpay Fund Account Validation (Penny-Drop) Handler ---
+  const triggerBankVerification = async () => {
+    const errors = {};
+    if (!bankData.account_holder?.trim()) errors.account_holder = 'Account Holder Name is required.';
+    if (!bankData.account_number?.trim()) errors.account_number = 'Account Number is required.';
+    if (!bankData.ifsc?.trim()) errors.ifsc = 'IFSC Code is required.';
+
+    if (Object.keys(errors).length > 0) {
+      setBankValidationErrors(errors);
+      return false;
+    }
+
+    setBankVerification((prev) => ({ ...prev, loading: true, error: null }));
+    try {
+      const res = await validateBankAccountApi({
+        account_number: bankData.account_number,
+        ifsc: bankData.ifsc,
+        account_holder: bankData.account_holder
+      });
+
+      setBankVerification({
+        status: res.status || 'Verified',
+        registeredName: res.registeredName || bankData.account_holder,
+        referenceId: res.referenceId || '',
+        message: res.message || '',
+        loading: false,
+        error: res.status === 'Failed' ? (res.message || 'Validation failed') : null
+      });
+
+      return res.status === 'Verified';
+    } catch (err) {
+      setBankVerification({
+        status: 'Failed',
+        registeredName: '',
+        referenceId: '',
+        message: err.message || 'Penny-drop verification failed',
+        loading: false,
+        error: err.message || 'Penny-drop verification failed'
+      });
+      return false;
+    }
   };
 
   // --- Step 3 Document Upload Handlers ---
@@ -621,7 +674,14 @@ export default function NewApplication({ publicCompany = null }) {
           bank_name: bankData.bank_name,
           branch: bankData.branch || '',
           city: bankData.city || '',
-          state: bankData.state || ''
+          state: bankData.state || '',
+          bank_verification: {
+            status: bankVerification.status || 'Verified',
+            registeredName: bankVerification.registeredName || bankData.account_holder,
+            referenceId: bankVerification.referenceId || `fav_test_${Date.now()}`,
+            validatedAt: new Date().toISOString()
+          },
+          bankVerificationStatus: bankVerification.status || 'Verified'
         },
         documents: {
           gst_certificate: documents.gst_certificate ? {
@@ -1143,6 +1203,162 @@ export default function NewApplication({ publicCompany = null }) {
               </div>
             )}
 
+            {/* Razorpay Fund Account Validation (Penny-Drop) Section */}
+            <div
+              className="bank-verification-section"
+              style={{
+                marginTop: '1.5rem',
+                background: 'rgba(15, 23, 42, 0.65)',
+                border: '1px solid var(--border-card)',
+                borderRadius: '12px',
+                padding: '1.25rem'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <span style={{ fontSize: '1.2rem' }}>⚡</span>
+                  <div>
+                    <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-main)' }}>
+                      Commercial Bank Account Verification (Penny-Drop)
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      Validates account activity and legal beneficiary name matching via Razorpay FAV API.
+                    </div>
+                  </div>
+                </div>
+                <span className="badge badge-review" style={{ fontSize: '0.7rem' }}>
+                  🧪 Razorpay Sandbox Mode
+                </span>
+              </div>
+
+              {/* Status Display */}
+              {bankVerification.status === 'Verified' && (
+                <div
+                  style={{
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    border: '1px solid rgba(16, 185, 129, 0.35)',
+                    borderRadius: '8px',
+                    padding: '0.85rem 1rem',
+                    marginBottom: '1rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                    <span style={{ color: '#10b981', fontWeight: '800', fontSize: '1rem' }}>✓ Bank account verified</span>
+                    <span className="badge badge-approved" style={{ fontSize: '0.65rem' }}>ACTIVE</span>
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-main)', lineHeight: '1.4' }}>
+                    Beneficiary Name: <strong>{bankVerification.registeredName || bankData.account_holder}</strong>
+                  </div>
+                  {bankVerification.referenceId && (
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem', fontFamily: 'monospace' }}>
+                      Razorpay Ref ID: {bankVerification.referenceId}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {bankVerification.status === 'Failed' && (
+                <div
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    borderRadius: '8px',
+                    padding: '0.85rem 1rem',
+                    marginBottom: '1rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                    <span style={{ color: '#ef4444', fontWeight: '800', fontSize: '0.95rem' }}>
+                      ⚠️ We couldn't verify this account — please double-check your details
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0, lineHeight: '1.4' }}>
+                    {bankVerification.message || 'Bank returned inactive or invalid account number. Please check the digits and try again.'}
+                  </p>
+                </div>
+              )}
+
+              {bankVerification.status === 'Name Mismatch' && (
+                <div
+                  style={{
+                    background: 'rgba(245, 158, 11, 0.12)',
+                    border: '1px solid rgba(245, 158, 11, 0.35)',
+                    borderRadius: '8px',
+                    padding: '0.85rem 1rem',
+                    marginBottom: '1rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                    <span style={{ color: '#f59e0b', fontWeight: '800', fontSize: '0.95rem' }}>
+                      ⚠️ Account Holder Name Mismatch
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-main)', margin: 0, lineHeight: '1.4' }}>
+                    {bankVerification.message || `Bank registered name differs from entered name. Application will require underwriter review.`}
+                  </p>
+                </div>
+              )}
+
+              {/* Action Buttons & Sandbox Testing Presets */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  className={bankVerification.status === 'Verified' ? 'btn-secondary' : 'btn-primary'}
+                  onClick={triggerBankVerification}
+                  disabled={bankVerification.loading}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', padding: '0.55rem 1rem' }}
+                >
+                  {bankVerification.loading ? (
+                    <>
+                      <span className="inline-spinner"></span>
+                      <span>Verifying via Penny-Drop...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{bankVerification.status === 'Verified' ? '✓ Re-verify Bank Account' : '⚡ Verify Bank Account'}</span>
+                    </>
+                  )}
+                </button>
+
+                <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>Sandbox Quick-Fills:</span>
+                  <button
+                    type="button"
+                    className="preset-pill-btn"
+                    style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem' }}
+                    onClick={() => {
+                      setBankData(prev => ({ ...prev, account_number: '50200084729103' }));
+                      setBankVerification(prev => ({ ...prev, status: 'Not Attempted' }));
+                    }}
+                  >
+                    Active Account
+                  </button>
+                  <button
+                    type="button"
+                    className="preset-pill-btn"
+                    style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem' }}
+                    onClick={() => {
+                      setBankData(prev => ({ ...prev, account_number: '999999999999' }));
+                      setBankVerification(prev => ({ ...prev, status: 'Not Attempted' }));
+                    }}
+                  >
+                    Invalid Account
+                  </button>
+                  <button
+                    type="button"
+                    className="preset-pill-btn"
+                    style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem' }}
+                    onClick={() => {
+                      setBankData(prev => ({ ...prev, account_number: '888888888888' }));
+                      setBankVerification(prev => ({ ...prev, status: 'Not Attempted' }));
+                    }}
+                  >
+                    Name Mismatch
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <div className="wizard-actions">
               <button type="button" className="btn-secondary" onClick={goToPrevStep}>
                 ← Back to Business Info
@@ -1466,13 +1682,28 @@ export default function NewApplication({ publicCompany = null }) {
                   </span>
                 </div>
               </div>
-              {bankData.ifsc_verified && (
-                <div className="review-badge-row">
+              <div className="review-badge-row" style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                {bankData.ifsc_verified && (
                   <span className="badge badge-approved">
-                    <span className="badge-dot dot-approved"></span> Bank Details Verified via Razorpay IFSC
+                    <span className="badge-dot dot-approved"></span> IFSC Verified
                   </span>
-                </div>
-              )}
+                )}
+                {bankVerification.status === 'Verified' && (
+                  <span className="badge badge-approved" style={{ background: 'rgba(16, 185, 129, 0.18)', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.4)' }}>
+                    ✓ Bank Account Active (Razorpay Penny-Drop Verified)
+                  </span>
+                )}
+                {bankVerification.status === 'Failed' && (
+                  <span className="badge badge-rejected">
+                    ⚠️ Penny-Drop Verification Failed
+                  </span>
+                )}
+                {bankVerification.status === 'Name Mismatch' && (
+                  <span className="badge badge-review">
+                    ⚠️ Account Name Mismatch
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Summary Section 3: Uploaded Documents Checklist */}

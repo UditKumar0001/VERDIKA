@@ -5,10 +5,30 @@ import { AuditLog } from '../models/AuditLog.js';
 import { User } from '../models/User.js';
 import { Company } from '../models/Company.js';
 import { agentPipeline } from '../services/agentPipeline.js';
+import { validateBankAccountRazorpay } from '../services/razorpayBankValidationService.js';
 import { validateApplicationInput } from '../utils/validators.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
+
+/**
+ * POST /api/underwriting/validate-bank-account
+ * Penny-drop bank account validation via Razorpay Fund Account Validation API
+ */
+router.post('/validate-bank-account', async (req, res) => {
+  try {
+    const { account_number, ifsc, account_holder } = req.body || {};
+    const result = await validateBankAccountRazorpay({ account_number, ifsc, account_holder });
+    return res.json(result);
+  } catch (error) {
+    logger.error('[Validate Bank Account Route Error]:', error);
+    return res.status(500).json({
+      status: 'Failed',
+      bankVerificationStatus: 'Failed',
+      error: error.message || 'Bank validation failed.'
+    });
+  }
+});
 
 /**
  * GET /api/underwriting/applications
