@@ -1,9 +1,15 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getCurrentUser, login as apiLogin, signup as apiSignup, logout as apiLogout } from '../api/authApi';
+import {
+  getCurrentUser,
+  login as apiLogin,
+  signup as apiSignup,
+  logout as apiLogout,
+  verifyOtp as apiVerifyOtp,
+  resendOtp as apiResendOtp
+} from '../api/authApi';
 
 /**
  * Authentication Context
- * Manages user session state, company details, initialization from token, login, and logout.
+ * Manages user session state, company details, initialization from token, login, 2FA OTP, and logout.
  */
 export const AuthContext = createContext(null);
 
@@ -44,13 +50,32 @@ export function AuthProvider({ children }) {
     setAuthError(null);
     try {
       const data = await apiLogin(credentials);
-      setUser(data.user);
-      setCompany(data.company || null);
+      if (!data.require_otp) {
+        setUser(data.user);
+        setCompany(data.company || null);
+      }
       return data;
     } catch (err) {
       setAuthError(err.message || 'Login failed');
       throw err;
     }
+  };
+
+  const verifyOtp = async ({ temp_token, otp }) => {
+    setAuthError(null);
+    try {
+      const data = await apiVerifyOtp({ temp_token, otp });
+      setUser(data.user);
+      setCompany(data.company || null);
+      return data;
+    } catch (err) {
+      setAuthError(err.message || 'Verification failed');
+      throw err;
+    }
+  };
+
+  const resendOtp = async ({ temp_token }) => {
+    return await apiResendOtp({ temp_token });
   };
 
   const signup = async (userData) => {
@@ -86,6 +111,8 @@ export function AuthProvider({ children }) {
         loading,
         authError,
         login,
+        verifyOtp,
+        resendOtp,
         signup,
         logout
       }}

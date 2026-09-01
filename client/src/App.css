@@ -5374,6 +5374,107 @@
   background: linear-gradient(135deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.8) 100%);
 }
 
+/* ==========================================================================
+   Two-Factor Authentication (2FA) OTP Styles
+   ========================================================================== */
+
+.otp-box-group {
+  display: flex;
+  justify-content: center;
+  gap: 0.65rem;
+  margin: 1.5rem 0 1rem 0;
+}
+
+.otp-digit-input {
+  width: 48px;
+  height: 56px;
+  font-size: 1.6rem;
+  font-weight: 800;
+  text-align: center;
+  font-family: var(--font-mono);
+  color: var(--text-main);
+  background: var(--bg-input);
+  border: 2px solid var(--border-card);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.otp-digit-input:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+  background: rgba(15, 23, 42, 0.95);
+  transform: translateY(-2px);
+}
+
+.otp-digit-input.has-value {
+  border-color: rgba(59, 130, 246, 0.6);
+  background: rgba(30, 41, 59, 0.8);
+}
+
+.otp-expiry-hint {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
+}
+
+.otp-resend-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1.25rem;
+  font-size: 0.82rem;
+}
+
+.btn-resend-otp {
+  background: none;
+  border: none;
+  color: var(--accent-cyan);
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.btn-resend-otp:hover:not(:disabled) {
+  text-decoration: underline;
+  color: var(--accent-blue);
+}
+
+.btn-resend-otp:disabled {
+  color: var(--text-dim);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.btn-back-login {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.btn-back-login:hover {
+  color: var(--text-main);
+  text-decoration: underline;
+}
+
+.otp-email-highlight {
+  color: var(--accent-cyan);
+  font-weight: 700;
+  word-break: break-all;
+}
+
+
 
 
 

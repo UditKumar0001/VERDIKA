@@ -45,6 +45,46 @@ export const login = async (credentials) => {
 };
 
 /**
+ * POST /api/auth/verify-otp
+ */
+export const verifyOtp = async ({ temp_token, otp }) => {
+  const res = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ temp_token, otp })
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    const err = new Error(data.error || 'Invalid verification code');
+    err.code = data.code;
+    throw err;
+  }
+  return data;
+};
+
+/**
+ * POST /api/auth/resend-otp
+ */
+export const resendOtp = async ({ temp_token }) => {
+  const res = await fetch(`${API_BASE_URL}/auth/resend-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ temp_token })
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    const err = new Error(data.error || 'Failed to resend verification code');
+    err.remainingSeconds = data.remainingSeconds;
+    throw err;
+  }
+  return data;
+};
+
+/**
  * GET /api/auth/me
  */
 export const getCurrentUser = async () => {

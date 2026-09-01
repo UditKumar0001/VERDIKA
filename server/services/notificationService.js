@@ -257,3 +257,86 @@ export async function sendDecisionNotification({ application, decision, customNo
     return { success: false, error: err.message, notification: notifRecord };
   }
 }
+
+/**
+ * Sends a 6-digit OTP verification email for two-factor authentication
+ */
+export async function sendOtpEmail({ recipientEmail, recipientName = 'Underwriter', otpCode, expiresMinutes = 5 }) {
+  const subject = `Your Verdika Login Verification Code: ${otpCode}`;
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>${subject}</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b;">
+      <div style="max-width: 520px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+        
+        <!-- Header -->
+        <div style="background: #0f172a; padding: 20px 24px; text-align: left; border-bottom: 3px solid #3b82f6;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 18px; font-weight: 700; letter-spacing: 0.5px;">VERDIKA SECURITY</h1>
+          <p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 12px;">Two-Factor Authentication</p>
+        </div>
+
+        <!-- Body -->
+        <div style="padding: 32px 24px; text-align: center;">
+          <h2 style="color: #0f172a; margin: 0 0 8px 0; font-size: 20px;">Verification Code</h2>
+          <p style="font-size: 14px; color: #64748b; line-height: 1.5; margin: 0 0 24px 0;">
+            Hello <strong>${recipientName}</strong>, enter the following 6-digit code to complete sign-in to your underwriter dashboard:
+          </p>
+
+          <!-- 6-digit OTP Box -->
+          <div style="margin: 20px auto; padding: 18px 28px; background: #f0f9ff; border: 2px dashed #0284c7; border-radius: 8px; display: inline-block;">
+            <span style="font-family: 'Courier New', Courier, monospace; font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #0369a1;">
+              ${otpCode}
+            </span>
+          </div>
+
+          <p style="font-size: 13px; color: #dc2626; font-weight: 600; margin: 16px 0 0 0;">
+            ⏱️ This code will expire in ${expiresMinutes} minutes.
+          </p>
+
+          <p style="font-size: 12px; color: #94a3b8; line-height: 1.5; margin: 24px 0 0 0; text-align: left; border-top: 1px solid #e2e8f0; padding-top: 16px;">
+            If you did not request this login attempt, please change your password immediately or alert your system administrator.
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const text = `
+VERDIKA SECURITY: TWO-FACTOR AUTHENTICATION
+==========================================
+Your verification code is: ${otpCode}
+
+This code will expire in ${expiresMinutes} minutes.
+
+If you did not initiate this login, please secure your account immediately.
+==========================================
+  `.trim();
+
+  try {
+    const transporter = createTransporter();
+    if (transporter) {
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM || '"Verdika Security" <no-reply@verdika.com>',
+        to: recipientEmail,
+        subject,
+        text,
+        html
+      });
+      logger.info(`[2FA Service] Sent OTP code via SMTP to ${recipientEmail}`);
+    } else {
+      logger.info(`[2FA Service: Sandbox Mode] Generated 6-digit OTP for ${recipientEmail}: ${otpCode} (Expires in ${expiresMinutes}m)`);
+    }
+    return { success: true, otpCode };
+  } catch (err) {
+    logger.error(`[2FA Service Error] Failed to dispatch OTP to ${recipientEmail}:`, err.message);
+    logger.info(`[2FA Service Fallback] OTP for ${recipientEmail}: ${otpCode}`);
+    return { success: true, otpCode, fallback: true };
+  }
+}
+

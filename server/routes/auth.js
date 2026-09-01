@@ -225,9 +225,14 @@ router.post('/accept-invite', authLimiter, async (req, res) => {
   }
 });
 
+import { sendOtpEmail } from '../services/notificationService.js';
+
+// In-memory active OTP storage for 2FA verification
+const otpStore = new Map();
+
 /**
  * POST /api/auth/login
- * Authenticates user credentials and returns session + company info.
+ * Authenticates user credentials, generates a 6-digit OTP and sends it via email for 2FA.
  */
 router.post('/login', authLimiter, async (req, res) => {
   try {
@@ -248,6 +253,111 @@ router.post('/login', authLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    // Generate 6-digit OTP and 5-minute expiration
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+    const now = Date.now();
+
+    otpStore.set(user.id, {
+      otp: otpCode,
+      expiresAt,
+      lastSentAt: now,
+      email: user.email,
+      userId: user.id
+    });
+
+    // Temporary signed challenge token for OTP verification
+    const tempToken = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+        type: '2fa_pending'
+      },
+      config.jwtSecret,
+      { expiresIn: '5m' }
+    );
+
+    // Dispatch OTP via Email Service
+    await sendOtpEmail({
+      recipientEmail: user.email,
+      recipientName: user.name || 'Underwriter',
+      otpCode,
+      expiresMinutes: 5
+    });
+
+    logger.info(`[Auth 2FA] Credentials verified for ${user.email}. OTP dispatched. Temporary token issued.`);
+
+    return res.json({
+      require_otp: true,
+      temp_token: tempToken,
+      email: user.email,
+      message: "We've sent a 6-digit verification code to your registered email address.",
+      debug_otp: config.nodeEnv !== 'production' ? otpCode : undefined
+    });
+  } catch (error) {
+    logger.error('[Auth Login Error]:', error);
+    return res.status(500).json({ error: 'Internal server error during authentication.' });
+  }
+});
+
+/**
+ * POST /api/auth/verify-otp
+ * Verifies 6-digit OTP and issues full authentication token & session cookie.
+ */
+router.post('/verify-otp', authLimiter, async (req, res) => {
+  try {
+    const { temp_token, otp } = req.body;
+    if (!temp_token || !otp) {
+      return res.status(400).json({ error: 'Session token and 6-digit verification code are required.' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(temp_token, config.jwtSecret);
+    } catch (err) {
+      return res.status(401).json({
+        error: 'Verification session expired. Please sign in again with your email and password.',
+        code: 'SESSION_EXPIRED'
+      });
+    }
+
+    if (decoded.type !== '2fa_pending' || !decoded.id) {
+      return res.status(401).json({ error: 'Invalid verification session.' });
+    }
+
+    const storedOtp = otpStore.get(decoded.id);
+    if (!storedOtp) {
+      return res.status(400).json({
+        error: 'No active verification code found or code has already been used. Please request a new code.',
+        code: 'OTP_EXPIRED'
+      });
+    }
+
+    // Check 5-minute expiration
+    if (Date.now() > storedOtp.expiresAt) {
+      otpStore.delete(decoded.id);
+      return res.status(400).json({
+        error: 'Verification code has expired (5-minute limit). Please click "Resend code" to get a new code.',
+        code: 'OTP_EXPIRED'
+      });
+    }
+
+    const cleanInputOtp = String(otp).trim();
+    if (storedOtp.otp !== cleanInputOtp) {
+      return res.status(400).json({
+        error: 'Invalid verification code. Please check your email and try again.',
+        code: 'OTP_INVALID'
+      });
+    }
+
+    // Valid OTP - Remove single-use code from store
+    otpStore.delete(decoded.id);
+
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
+
     let company = null;
     if (user.company_id) {
       company = await Company.findById(user.company_id);
@@ -256,7 +366,7 @@ router.post('/login', authLimiter, async (req, res) => {
     const token = generateToken(user, company);
     setAuthCookie(res, token);
 
-    logger.info(`[Auth] User logged in: ${user.email}`);
+    logger.info(`[Auth 2FA] 2FA verified successfully for user: ${user.email} (Company: ${company?.name || 'Platform'})`);
 
     const appOrigin = req.headers.origin || 'http://localhost:5173';
 
@@ -271,8 +381,80 @@ router.post('/login', authLimiter, async (req, res) => {
       } : null
     });
   } catch (error) {
-    logger.error('[Auth Login Error]:', error);
-    return res.status(500).json({ error: 'Internal server error during authentication.' });
+    logger.error('[Auth Verify OTP Error]:', error);
+    return res.status(500).json({ error: 'Internal server error during OTP verification.' });
+  }
+});
+
+/**
+ * POST /api/auth/resend-otp
+ * Resends a fresh 6-digit OTP code with a 30-second cooldown constraint.
+ */
+router.post('/resend-otp', authLimiter, async (req, res) => {
+  try {
+    const { temp_token } = req.body;
+    if (!temp_token) {
+      return res.status(400).json({ error: 'Session token is required.' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(temp_token, config.jwtSecret);
+    } catch (err) {
+      return res.status(401).json({
+        error: 'Verification session expired. Please sign in again with your email and password.',
+        code: 'SESSION_EXPIRED'
+      });
+    }
+
+    if (decoded.type !== '2fa_pending' || !decoded.id) {
+      return res.status(401).json({ error: 'Invalid verification session.' });
+    }
+
+    const now = Date.now();
+    const storedOtp = otpStore.get(decoded.id);
+
+    // Enforce 30-second cooldown
+    if (storedOtp && storedOtp.lastSentAt && (now - storedOtp.lastSentAt < 30000)) {
+      const remainingSeconds = Math.ceil((30000 - (now - storedOtp.lastSentAt)) / 1000);
+      return res.status(429).json({
+        error: `Please wait ${remainingSeconds}s before requesting a new code.`,
+        remainingSeconds
+      });
+    }
+
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User account not found.' });
+    }
+
+    const newOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = now + 5 * 60 * 1000;
+
+    otpStore.set(user.id, {
+      otp: newOtpCode,
+      expiresAt,
+      lastSentAt: now,
+      email: user.email,
+      userId: user.id
+    });
+
+    await sendOtpEmail({
+      recipientEmail: user.email,
+      recipientName: user.name || 'Underwriter',
+      otpCode: newOtpCode,
+      expiresMinutes: 5
+    });
+
+    logger.info(`[Auth 2FA] Resent 2FA OTP code to ${user.email}`);
+
+    return res.json({
+      message: 'A new 6-digit verification code has been sent to your email.',
+      debug_otp: config.nodeEnv !== 'production' ? newOtpCode : undefined
+    });
+  } catch (error) {
+    logger.error('[Auth Resend OTP Error]:', error);
+    return res.status(500).json({ error: 'Failed to resend verification code.' });
   }
 });
 
