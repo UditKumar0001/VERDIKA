@@ -84,6 +84,27 @@ router.get('/applications/:id', requireAuth, async (req, res) => {
       return res.status(403).json({ error: 'Access denied: Application belongs to another company.' });
     }
 
+    // Record reviewer view activity in audit log (debounced to avoid duplicate logs on rapid refresh)
+    if (req.user) {
+      const reviewerName = req.user.name || req.user.email || 'Underwriter';
+      const existingLogs = await AuditLog.findByApplicationId(id);
+      const lastView = existingLogs.filter(l => (l.actor === reviewerName || l.actor === req.user.id) && (l.agent_name === 'ReviewerActivity' || l.agentName === 'ReviewerActivity')).pop();
+      const twoMinutesAgo = Date.now() - 2 * 60 * 1000;
+
+      if (!lastView || new Date(lastView.createdAt || lastView.created_at).getTime() < twoMinutesAgo) {
+        await AuditLog.create({
+          applicationId: id,
+          agentName: 'ReviewerActivity',
+          actor: reviewerName,
+          inputSnapshot: { action: 'view_application', userId: req.user.id, role: req.user.role },
+          outputSnapshot: { status: application.status },
+          confidenceScore: 1.0,
+          executionTimeMs: 0,
+          summary: `Application viewed and inspected by ${reviewerName}`
+        });
+      }
+    }
+
     const auditLogs = await AuditLog.findByApplicationId(id);
 
     let reviewer_name = null;
@@ -355,14 +376,16 @@ router.post('/applications/:id/review', requireAuth, async (req, res) => {
     // 1. Update Application status to 'closed', setting reviewer_id and reviewer_decision
     const updatedApp = await Application.updateStatus(id, 'closed', req.user.id, normalizedDecision);
 
-    // 2. Append AuditLog entry
-    const summary = `Human review decision: ${normalizedDecision.toUpperCase()}${notes ? `. Notes: ${notes}` : ''}`;
+    const reviewerName = req.user.name || req.user.email || 'Underwriter';
+
+    // 2. Append AuditLog entry with clear action and actor
+    const summary = `Decision rendered: ${normalizedDecision.toUpperCase()}. Status updated from ${application.status} to closed.${notes ? ` Reviewer Notes: "${notes}"` : ''}`;
     await AuditLog.create({
       applicationId: id,
       agentName: 'HumanReviewer',
-      actor: req.user.id,
-      inputSnapshot: { reviewerId: req.user.id, decision: normalizedDecision, notes: notes || '' },
-      outputSnapshot: { status: 'closed', reviewerDecision: normalizedDecision },
+      actor: reviewerName,
+      inputSnapshot: { reviewerId: req.user.id, reviewerName, decision: normalizedDecision, notes: notes || '' },
+      outputSnapshot: { previousStatus: application.status, newStatus: 'closed', reviewerDecision: normalizedDecision },
       confidenceScore: 1.0,
       executionTimeMs: 0,
       summary
@@ -391,6 +414,56 @@ router.post('/applications/:id/review', requireAuth, async (req, res) => {
   } catch (error) {
     logger.error(`[Underwriting Review Application ${req.params.id} Error]:`, error);
     return res.status(500).json({ error: 'Failed to submit review decision.' });
+  }
+});
+
+/**
+ * POST /api/underwriting/applications/:id/request-info
+ * Logs reviewer requesting additional KYC documents, clarifications, or inspection details from the merchant.
+ */
+router.post('/applications/:id/request-info', requireAuth, async (req, res) => {
+  try {
+    if (!req.user || !['underwriter', 'admin'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Forbidden: Underwriter or Admin access required.' });
+    }
+
+    const { id } = req.params;
+    const { request_type, notes } = req.body || {};
+
+    const application = await Application.findById(id);
+    if (!application) {
+      return res.status(404).json({ error: 'Application not found.' });
+    }
+
+    const userCompanyId = req.user.company_id || req.user.companyId;
+    if (userCompanyId && application.company_id && application.company_id !== userCompanyId && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied: Application belongs to another company.' });
+    }
+
+    const reviewerName = req.user.name || req.user.email || 'Underwriter';
+    const requestTitle = request_type || 'Supplemental KYC & Document Verification';
+    const summary = `Information Request: ${requestTitle}.${notes ? ` Reviewer Notes: "${notes}"` : ' Requested merchant verification update.'}`;
+
+    await AuditLog.create({
+      applicationId: id,
+      agentName: 'ReviewerAction',
+      actor: reviewerName,
+      inputSnapshot: { action: 'request_info', requestType: requestTitle, notes: notes || '', reviewerId: req.user.id },
+      outputSnapshot: { currentStatus: application.status, requestedAt: new Date().toISOString() },
+      confidenceScore: 1.0,
+      executionTimeMs: 0,
+      summary
+    });
+
+    const auditLogs = await AuditLog.findByApplicationId(id);
+
+    return res.json({
+      message: 'Information request logged to activity timeline.',
+      auditLogs
+    });
+  } catch (error) {
+    logger.error(`[Underwriting Request Info Error for ${req.params.id}]:`, error);
+    return res.status(500).json({ error: 'Failed to record information request.' });
   }
 });
 

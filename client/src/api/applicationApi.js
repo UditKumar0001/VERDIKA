@@ -147,6 +147,21 @@ export const submitReviewDecision = async (id, { decision, notes }) => {
   return data; // returns { message, application, auditLogs }
 };
 
+export const requestApplicationInfo = async (id, { request_type, notes }) => {
+  const res = await fetch(`${API_BASE_URL}/underwriting/applications/${id}/request-info`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ request_type, notes })
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to submit information request');
+  }
+  return data; // returns { message, auditLogs }
+};
+
 export const validateBankAccountApi = async ({ account_number, ifsc, account_holder }) => {
   const res = await fetch(`${API_BASE_URL}/underwriting/validate-bank-account`, {
     method: 'POST',

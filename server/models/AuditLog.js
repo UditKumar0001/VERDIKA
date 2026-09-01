@@ -20,14 +20,19 @@ export class AuditLog {
   }) {
     this.id = id;
     this.applicationId = applicationId;
+    this.application_id = applicationId;
     this.agentName = agentName;
+    this.agent_name = agentName;
     this.actor = actor;
     this.inputSnapshot = typeof inputSnapshot === 'string' ? JSON.parse(inputSnapshot || '{}') : (inputSnapshot || {});
     this.outputSnapshot = typeof outputSnapshot === 'string' ? JSON.parse(outputSnapshot || '{}') : (outputSnapshot || {});
     this.confidenceScore = confidenceScore || 0;
+    this.confidence_score = confidenceScore || 0;
     this.executionTimeMs = executionTimeMs || 0;
+    this.execution_time_ms = executionTimeMs || 0;
     this.summary = summary || '';
     this.createdAt = createdAt || new Date().toISOString();
+    this.created_at = this.createdAt;
   }
 
   static fromRow(row) {

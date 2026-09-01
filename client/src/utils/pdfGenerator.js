@@ -810,6 +810,68 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
   });
 
   // ==========================================
+  // 6. CONDENSED COMPLIANCE & ACTIVITY AUDIT TIMELINE
+  // ==========================================
+  if (auditLogs && auditLogs.length > 0) {
+    ensureSpace(35);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(30, 41, 59);
+    doc.text('6. Compliance & Activity Audit Trail', marginX, y);
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.line(marginX, y + 2, pageWidth - marginX, y + 2);
+    y += 5;
+
+    const complianceLogRows = auditLogs.map((log) => {
+      const isHuman = (log.actor && log.actor !== 'system') || (log.agent_name || log.agentName) === 'HumanReviewer' || (log.agent_name || log.agentName) === 'ReviewerActivity' || (log.agent_name || log.agentName) === 'ReviewerAction';
+      const actorLabel = isHuman
+        ? (log.actor || 'Underwriter')
+        : (log.agent_name || log.agentName || 'System Pipeline');
+
+      const actionDesc = log.summary || 'Step executed';
+
+      return [
+        formatDate(log.created_at || log.createdAt),
+        actorLabel,
+        actionDesc
+      ];
+    });
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: marginX, right: marginX },
+      head: [['Timestamp', 'Actor / Source', 'Action Description & Compliance Trace']],
+      body: complianceLogRows,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [15, 23, 42],
+        textColor: [255, 255, 255],
+        fontSize: 7.5,
+        fontStyle: 'bold',
+        cellPadding: 2.2
+      },
+      styles: {
+        fontSize: 7,
+        cellPadding: 2,
+        textColor: [51, 65, 85],
+        overflow: 'linebreak',
+        valign: 'middle'
+      },
+      columnStyles: {
+        0: { cellWidth: 36, fontStyle: 'bold' },
+        1: { cellWidth: 42, fontStyle: 'bold', textColor: [37, 99, 235] },
+        2: { cellWidth: 104 }
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252]
+      }
+    });
+
+    y = (doc.lastAutoTable?.finalY || y) + 8;
+  }
+
+  // ==========================================
   // 8. FOOTER WITH SIGN-OFF & PAGE NUMBERS
   // ==========================================
   const totalPages = doc.internal.getNumberOfPages();
