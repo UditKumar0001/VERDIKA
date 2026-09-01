@@ -27,11 +27,13 @@ function ReviewerDashboard({ user, company }) {
     tabParam === 'analytics' || tabParam === 'team' ? tabParam : 'queue'
   );
   const [applications, setApplications] = useState([]);
-  const [allApplications, setAllApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [statusFilter, setStatusFilter] = useState('pending_review'); // Default actionable queue
+  
+  // Filter & Search & Sort Controls State
+  const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'pending' | 'approved' | 'rejected' | 'manual_review'
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('date_desc'); // 'date_desc' | 'date_asc' | 'risk_desc' | 'risk_asc'
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -51,24 +53,14 @@ function ReviewerDashboard({ user, company }) {
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
-  
-  // Sorting state
-  const [sortField, setSortField] = useState('created_at');
-  const [sortOrder, setSortOrder] = useState('desc');
 
   const loadQueue = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [filteredData, allData] = await Promise.all([
-        fetchApplications({
-          status: statusFilter,
-          search: searchQuery
-        }),
-        fetchApplications({ status: 'ALL' })
-      ]);
-      setApplications(filteredData);
-      setAllApplications(allData);
+      // Load all company applications so client-side searching/filtering/sorting is instant
+      const data = await fetchApplications({ status: 'ALL' });
+      setApplications(data);
     } catch (err) {
       setError(err.message || 'Failed to load reviewer queue.');
     } finally {
@@ -78,33 +70,110 @@ function ReviewerDashboard({ user, company }) {
 
   useEffect(() => {
     loadQueue();
-  }, [statusFilter, searchQuery]);
+  }, []);
 
-  const toggleSort = (field) => {
-    if (sortField === field) {
-      setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortField(field);
-      setSortOrder('desc');
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setStatusFilter('ALL');
+    setSortBy('date_desc');
+  };
+
+  const toggleHeaderSort = (field) => {
+    if (field === 'riskScore') {
+      setSortBy(prev => (prev === 'risk_desc' ? 'risk_asc' : 'risk_desc'));
+    } else if (field === 'created_at') {
+      setSortBy(prev => (prev === 'date_desc' ? 'date_asc' : 'date_desc'));
     }
   };
 
-  // Sorted Applications Array
-  const sortedApplications = [...applications].sort((a, b) => {
-    let valA, valB;
-    if (sortField === 'riskScore') {
-      valA = a.risk_result?.riskScore ?? a.riskScore ?? -1;
-      valB = b.risk_result?.riskScore ?? b.riskScore ?? -1;
-    } else {
-      // Default created_at
-      valA = new Date(a.created_at || 0).getTime();
-      valB = new Date(b.created_at || 0).getTime();
+  // -------------------------------------------------------------
+  // Combined Search, Status Filter & Sorting Logic
+  // -------------------------------------------------------------
+  const filteredAndSortedApplications = useMemo(() => {
+    let list = [...applications];
+
+    // 1. Status Filter
+    if (statusFilter !== 'ALL') {
+      list = list.filter((app) => {
+        const revDec = (app.reviewer_decision || '').toLowerCase();
+        const dec = (app.decision || '').toLowerCase();
+        const status = (app.status || '').toLowerCase();
+
+        if (statusFilter === 'pending') {
+          return status === 'pending_review' || (status !== 'closed' && !revDec);
+        }
+        if (statusFilter === 'approved') {
+          return revDec === 'approved' || dec === 'auto_approve';
+        }
+        if (statusFilter === 'rejected') {
+          return revDec === 'rejected' || dec === 'auto_reject';
+        }
+        if (statusFilter === 'manual_review') {
+          return dec === 'route_to_human' || status === 'pending_review' || revDec === 'manual_review';
+        }
+        if (statusFilter === 'closed') {
+          return status === 'closed';
+        }
+        return true;
+      });
     }
 
-    if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
-    if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
-    return 0;
-  });
+    // 2. Search Query (business name, GSTIN, App ID, category, applicant email)
+    const query = searchQuery.trim().toLowerCase();
+    if (query) {
+      list = list.filter((app) => {
+        const businessName = (
+          app.merchant_data?.business_name ||
+          app.merchant_data?.businessName ||
+          app.business_name ||
+          ''
+        ).toLowerCase();
+        const gstin = (app.merchant_data?.gstin || app.gstin || '').toLowerCase();
+        const appId = (app.id || '').toLowerCase();
+        const email = (
+          app.merchant_data?.applicant_email ||
+          app.merchant_data?.email ||
+          ''
+        ).toLowerCase();
+        const category = (app.merchant_data?.business_category || '').toLowerCase();
+
+        return (
+          businessName.includes(query) ||
+          gstin.includes(query) ||
+          appId.includes(query) ||
+          email.includes(query) ||
+          category.includes(query)
+        );
+      });
+    }
+
+    // 3. Multi-Attribute Sorting
+    list.sort((a, b) => {
+      const dateA = new Date(a.created_at || 0).getTime();
+      const dateB = new Date(b.created_at || 0).getTime();
+
+      const riskObjA = typeof a.risk_result === 'object' && a.risk_result ? a.risk_result : {};
+      const riskObjB = typeof b.risk_result === 'object' && b.risk_result ? b.risk_result : {};
+      const riskA = riskObjA.riskScore ?? a.riskScore ?? 0;
+      const riskB = riskObjB.riskScore ?? b.riskScore ?? 0;
+
+      if (sortBy === 'date_asc') return dateA - dateB;
+      if (sortBy === 'risk_desc') return riskB - riskA;
+      if (sortBy === 'risk_asc') return riskA - riskB;
+      // Default: date_desc (newest first)
+      return dateB - dateA;
+    });
+
+    return list;
+  }, [applications, statusFilter, searchQuery, sortBy]);
+
+  // Dynamic counts for summary chips
+  const totalCount = applications.length;
+  const pendingCount = applications.filter(a => (a.status || '').toLowerCase() === 'pending_review' || !a.reviewer_decision).length;
+  const approvedCount = applications.filter(a => a.reviewer_decision === 'approved' || a.decision === 'auto_approve').length;
+  const rejectedCount = applications.filter(a => a.reviewer_decision === 'rejected' || a.decision === 'auto_reject').length;
+  const adversarialCount = applications.filter(a => a.adversarial_result?.adversarialFlag === true).length;
+  const closedCount = applications.filter(a => (a.status || '').toLowerCase() === 'closed').length;
 
   const getStatusBadge = (app) => {
     const st = app.status ? app.status.toLowerCase() : '';
@@ -319,38 +388,85 @@ function ReviewerDashboard({ user, company }) {
 
           {/* Main Reviewer Table Card */}
           <div className="dashboard-card">
-            {/* Toolbar & Filters */}
-            <div className="card-toolbar">
-              <div className="filter-group">
-                <span className="filter-label">Queue View:</span>
-                <button
-                  className={`filter-btn ${statusFilter === 'pending_review' ? 'active' : ''}`}
-                  onClick={() => setStatusFilter('pending_review')}
-                >
-                  Pending Review ({pendingCount})
-                </button>
-                <button
-                  className={`filter-btn ${statusFilter === 'closed' ? 'active' : ''}`}
-                  onClick={() => setStatusFilter('closed')}
-                >
-                  Closed
-                </button>
-                <button
-                  className={`filter-btn ${statusFilter === 'ALL' ? 'active' : ''}`}
-                  onClick={() => setStatusFilter('ALL')}
-                >
-                  All Queue
-                </button>
-              </div>
-
-              <div className="search-box">
+            {/* Search, Filter & Sort Controls Panel */}
+            <div className="queue-controls-panel">
+              {/* 1. Search bar at the top */}
+              <div className="queue-search-bar">
+                <span className="search-icon">🔍</span>
                 <input
                   type="text"
-                  placeholder="Search by ID or business name..."
+                  placeholder="Search by business name, GSTIN, or Application ID..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="search-input"
+                  className="queue-search-input"
+                  id="queue-search-input"
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    className="search-clear-btn"
+                    onClick={() => setSearchQuery('')}
+                    title="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* 2. Filter & Sort Dropdowns Row */}
+              <div className="queue-dropdowns-row">
+                {/* Status Filter Dropdown */}
+                <div className="control-group">
+                  <label className="control-label" htmlFor="status-filter-select">
+                    Filter by Status:
+                  </label>
+                  <select
+                    id="status-filter-select"
+                    className="filter-select"
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                  >
+                    <option value="ALL">All Statuses ({applications.length})</option>
+                    <option value="pending">Pending Review ({pendingCount})</option>
+                    <option value="approved">Approved ({approvedCount})</option>
+                    <option value="rejected">Rejected ({rejectedCount})</option>
+                    <option value="manual_review">Manual Review Flagged</option>
+                  </select>
+                </div>
+
+                {/* Sort Dropdown */}
+                <div className="control-group">
+                  <label className="control-label" htmlFor="sort-select">
+                    Sort by:
+                  </label>
+                  <select
+                    id="sort-select"
+                    className="filter-select"
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                  >
+                    <option value="date_desc">📅 Date: Newest First</option>
+                    <option value="date_asc">📅 Date: Oldest First</option>
+                    <option value="risk_desc">⚠️ Risk Score: Highest First</option>
+                    <option value="risk_asc">🛡️ Risk Score: Lowest First</option>
+                  </select>
+                </div>
+
+                {/* Active filter counter & Reset button */}
+                {(searchQuery || statusFilter !== 'ALL' || sortBy !== 'date_desc') && (
+                  <button
+                    type="button"
+                    className="btn-reset-filters"
+                    onClick={handleResetFilters}
+                    title="Reset all search & filter controls"
+                  >
+                    ↺ Reset Filters
+                  </button>
+                )}
+
+                <div className="queue-results-counter">
+                  Showing <strong>{filteredAndSortedApplications.length}</strong> of {applications.length} applications
+                </div>
               </div>
             </div>
 
@@ -361,11 +477,21 @@ function ReviewerDashboard({ user, company }) {
                 <div className="spinner"></div>
                 <p>Loading reviewer queue...</p>
               </div>
-            ) : sortedApplications.length === 0 ? (
+            ) : filteredAndSortedApplications.length === 0 ? (
               <div className="empty-state">
-                <div className="empty-icon">🛡️</div>
-                <h3>No Applications in Queue</h3>
-                <p>No applications match the selected status filter.</p>
+                <div className="empty-icon">🔍</div>
+                <h3>No applications match your filters</h3>
+                <p>
+                  No applications match the current combination of search keywords and status filters.
+                </p>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleResetFilters}
+                  style={{ display: 'inline-flex', marginTop: '1rem', padding: '0.5rem 1.25rem' }}
+                >
+                  ↺ Reset All Filters
+                </button>
               </div>
             ) : (
               <div className="table-responsive">
@@ -376,21 +502,27 @@ function ReviewerDashboard({ user, company }) {
                       <th>Merchant Name</th>
                       <th
                         className="sortable-header"
-                        onClick={() => toggleSort('riskScore')}
+                        onClick={() => toggleHeaderSort('riskScore')}
                         title="Click to sort by Risk Score"
                       >
-                        Risk Score {sortField === 'riskScore' ? (sortOrder === 'asc' ? '▲' : '▼') : '⇅'}
+                        Risk Score {sortBy === 'risk_desc' ? '▼' : sortBy === 'risk_asc' ? '▲' : '⇅'}
                       </th>
                       <th>Confidence</th>
                       <th>Adversarial Risk Flag</th>
                       <th>Pipeline Verdict</th>
                       <th>Status</th>
-                      <th>Submitted</th>
+                      <th
+                        className="sortable-header"
+                        onClick={() => toggleHeaderSort('created_at')}
+                        title="Click to sort by Submission Date"
+                      >
+                        Submitted {sortBy === 'date_desc' ? '▼' : sortBy === 'date_asc' ? '▲' : '⇅'}
+                      </th>
                       <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedApplications.map((app) => {
+                    {filteredAndSortedApplications.map((app) => {
                       const riskObj = typeof app.risk_result === 'string'
                         ? (() => { try { return JSON.parse(app.risk_result); } catch { return {}; } })()
                         : (app.risk_result || {});
