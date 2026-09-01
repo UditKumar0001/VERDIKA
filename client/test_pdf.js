@@ -2,12 +2,16 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import fs from 'fs';
 import path from 'path';
+import { computeRiskExplainabilityFactors } from './src/utils/riskExplainability.js';
 
 function wrapAndSplitText(doc, text, maxWidth) {
   if (!text) return [];
   const clean = String(text)
-    .replace(/—/g, ' — ')
-    .replace(/([/_,-])/g, '$1 ')
+    .replace(/[—–]/g, ' - ')
+    .replace(/→/g, ' -> ')
+    .replace(/[•●○]/g, ' - ')
+    .replace(/[✓✔]/g, '[OK]')
+    .replace(/([/_,-;:])/g, '$1 ')
     .replace(/\s+/g, ' ')
     .trim();
   return doc.splitTextToSize(clean, maxWidth);
@@ -196,6 +200,75 @@ function generateReportForTest(application) {
   doc.text('High Risk Tier', marginX + 125, y + 11);
   y += 18;
 
+  const mockApp = {
+    risk_result: { riskScore, confidence, reasonCodes },
+    merchant_data: { business_name: businessName, documents: { gst_certificate: null, pan_card: null, bank_statement: null } },
+    adversarial_result: { adversarialFlag: false }
+  };
+  const explainFactors = computeRiskExplainabilityFactors(mockApp).slice(0, 6);
+  if (explainFactors.length > 0) {
+    const chartRowHeight = 6.8;
+    const chartCardHeight = 11 + (explainFactors.length * chartRowHeight) + 4;
+
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(marginX, y, contentWidth, chartCardHeight, 1.5, 1.5, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(30, 41, 59);
+    doc.text('Risk Factor Attribution (Explainability Chart)', marginX + 6, y + 5.2);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.0);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Green = Protective (-%) | Red = Risk Trigger (+%)', pageWidth - marginX - 6, y + 5.2, { align: 'right' });
+
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.line(marginX + 4, y + 7.5, pageWidth - marginX - 4, y + 7.5);
+
+    const maxAbsWeight = Math.max(35, ...explainFactors.map(f => f.weightAbs));
+    const trackWidth = 50;
+    const trackX = marginX + 65;
+
+    explainFactors.forEach((factor, idx) => {
+      const rowY = y + 9.5 + (idx * chartRowHeight);
+      const isPositive = factor.type === 'positive';
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(30, 41, 59);
+      doc.text(factor.name, marginX + 6, rowY + 3.2);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.2);
+      doc.setTextColor(100, 116, 139);
+      const descText = factor.description.length > 40 ? factor.description.slice(0, 38) + '...' : factor.description;
+      doc.text(descText, marginX + 6, rowY + 5.8);
+
+      doc.setFillColor(226, 232, 240);
+      doc.roundedRect(trackX, rowY + 1.2, trackWidth, 3.8, 0.8, 0.8, 'F');
+
+      const barFillW = Math.max(6, (factor.weightAbs / maxAbsWeight) * trackWidth);
+      if (isPositive) {
+        doc.setFillColor(16, 185, 129);
+      } else {
+        doc.setFillColor(225, 29, 72);
+      }
+      doc.roundedRect(trackX, rowY + 1.2, Math.min(trackWidth, barFillW), 3.8, 0.8, 0.8, 'F');
+
+      const tagStr = `${factor.name}: ${isPositive ? factor.impact + '%' : '+' + factor.impact + '%'}`;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.2);
+      doc.setTextColor(isPositive ? 16 : 220, isPositive ? 185 : 38, isPositive ? 129 : 38);
+      doc.text(tagStr, trackX + trackWidth + 4, rowY + 4.0);
+    });
+
+    y += chartCardHeight + 5;
+  }
+
   reasonCodes.forEach((rc) => {
     const fullReason = `• [${rc.code}] (+${rc.weight} weight): ${rc.description}`;
     const splitReason = wrapAndSplitText(doc, fullReason, contentWidth - 8);
@@ -286,11 +359,13 @@ function generateReportForTest(application) {
   agents.forEach(agent => {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
-    const splitSummary = wrapAndSplitText(doc, agent.summary, contentWidth - 16);
-    const lineHeight = 3.8;
+    const textAvailableWidth = contentWidth - 12;
+    const splitSummary = wrapAndSplitText(doc, agent.summary, textAvailableWidth);
+    const lineHeight = 4.0;
     const textBlockHeight = splitSummary.length * lineHeight;
-    const cardHeaderHeight = 10.5;
-    const totalCardHeight = Math.max(16, cardHeaderHeight + textBlockHeight + 3.5);
+    const hasRole = Boolean(agent.role);
+    const cardHeaderHeight = hasRole ? 14.5 : 8.0;
+    const totalCardHeight = Math.max(18, cardHeaderHeight + textBlockHeight + 3.0);
 
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(203, 213, 225);
@@ -302,17 +377,19 @@ function generateReportForTest(application) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(30, 41, 59);
-    doc.text(`Agent: ${agent.name}`, marginX + 6, y + 4.5);
+    doc.text(`Agent: ${agent.name}`, marginX + 6, y + 5.0);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(100, 116, 139);
-    doc.text(agent.latency, pageWidth - marginX - 4, y + 4.5, { align: 'right' });
+    doc.text(agent.latency, pageWidth - marginX - 4, y + 5.0, { align: 'right' });
 
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(7.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text(agent.role, marginX + 6, y + 8.5);
+    if (hasRole) {
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text(agent.role, marginX + 6, y + 9.5);
+    }
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);

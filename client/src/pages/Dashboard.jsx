@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { fetchMyApplications, fetchApplications } from '../api/applicationApi';
 import TeamManagement from '../components/TeamManagement';
+import CompanyAnalytics from '../components/CompanyAnalytics';
 
 export default function Dashboard() {
   const { user, company } = useAuth();
@@ -20,13 +21,29 @@ export default function Dashboard() {
  */
 function ReviewerDashboard({ user, company }) {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('queue'); // 'queue' | 'team'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(
+    tabParam === 'analytics' || tabParam === 'team' ? tabParam : 'queue'
+  );
   const [applications, setApplications] = useState([]);
+  const [allApplications, setAllApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [statusFilter, setStatusFilter] = useState('pending_review'); // Default actionable queue
   const [searchQuery, setSearchQuery] = useState('');
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (tabParam && ['queue', 'analytics', 'team'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
+
+  const handleTabChange = (newTab) => {
+    setActiveTab(newTab);
+    setSearchParams(newTab === 'queue' ? {} : { tab: newTab });
+  };
 
   const handleCopyLink = () => {
     const link = company?.apply_link || `${window.location.origin}/apply/${company?.slug || 'verdika-capital'}`;
@@ -43,11 +60,15 @@ function ReviewerDashboard({ user, company }) {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchApplications({
-        status: statusFilter,
-        search: searchQuery
-      });
-      setApplications(data);
+      const [filteredData, allData] = await Promise.all([
+        fetchApplications({
+          status: statusFilter,
+          search: searchQuery
+        }),
+        fetchApplications({ status: 'ALL' })
+      ]);
+      setApplications(filteredData);
+      setAllApplications(allData);
     } catch (err) {
       setError(err.message || 'Failed to load reviewer queue.');
     } finally {
@@ -149,29 +170,43 @@ function ReviewerDashboard({ user, company }) {
             Underwriter & Risk Portal
           </div>
           <h1 className="dashboard-title">
-            {activeTab === 'team' ? 'Team & Underwriter Management' : 'Underwriting Review Queue'}
+            {activeTab === 'analytics'
+              ? 'Portfolio Analytics & Underwriting Performance'
+              : activeTab === 'team'
+              ? 'Team & Underwriter Management'
+              : 'Underwriting Review Queue'}
           </h1>
           <p className="dashboard-subtitle">
-            {activeTab === 'team'
+            {activeTab === 'analytics'
+              ? 'Real-time approval rates, risk tier histograms, turnaround metrics, and company pipeline intelligence.'
+              : activeTab === 'team'
               ? 'Manage authorized underwriters and generate secure invite links for your company.'
               : 'Autonomous multi-agent risk evaluation queue and decision verification.'}
           </p>
         </div>
 
         {/* Dashboard Section Switcher Tabs */}
-        <div style={{ display: 'flex', background: 'var(--bg-input)', border: '1px solid var(--border-card)', borderRadius: '8px', padding: '4px', gap: '4px' }}>
+        <div style={{ display: 'flex', background: 'var(--bg-input)', border: '1px solid var(--border-card)', borderRadius: '8px', padding: '4px', gap: '4px', flexWrap: 'wrap' }}>
           <button
             type="button"
             className={`filter-btn ${activeTab === 'queue' ? 'active' : ''}`}
-            onClick={() => setActiveTab('queue')}
+            onClick={() => handleTabChange('queue')}
             style={{ padding: '0.45rem 1rem', fontSize: '0.85rem', fontWeight: 700, borderRadius: '6px' }}
           >
-            📋 Application Queue ({pendingCount})
+            📋 Review Queue ({pendingCount})
+          </button>
+          <button
+            type="button"
+            className={`filter-btn ${activeTab === 'analytics' ? 'active' : ''}`}
+            onClick={() => handleTabChange('analytics')}
+            style={{ padding: '0.45rem 1rem', fontSize: '0.85rem', fontWeight: 700, borderRadius: '6px' }}
+          >
+            📊 Analytics & Insights
           </button>
           <button
             type="button"
             className={`filter-btn ${activeTab === 'team' ? 'active' : ''}`}
-            onClick={() => setActiveTab('team')}
+            onClick={() => handleTabChange('team')}
             style={{ padding: '0.45rem 1rem', fontSize: '0.85rem', fontWeight: 700, borderRadius: '6px' }}
           >
             👥 Team & Invites
@@ -252,7 +287,13 @@ function ReviewerDashboard({ user, company }) {
         </div>
       )}
 
-      {activeTab === 'team' ? (
+      {activeTab === 'analytics' ? (
+        <CompanyAnalytics
+          applications={allApplications.length > 0 ? allApplications : applications}
+          company={company}
+          loading={loading}
+        />
+      ) : activeTab === 'team' ? (
         <TeamManagement user={user} company={company} />
       ) : (
         <>

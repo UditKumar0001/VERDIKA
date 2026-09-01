@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { fetchApplicationById, submitReviewDecision } from '../api/applicationApi';
 import { generateUnderwritingReportPDF } from '../utils/pdfGenerator';
+import RiskExplainabilityChart from '../components/RiskExplainabilityChart';
 
 export default function ApplicationDetail() {
   const { id } = useParams();
@@ -219,6 +220,9 @@ export default function ApplicationDetail() {
             ) : (
               <p className="text-muted">No numerical risk score computed.</p>
             )}
+
+            {/* Visual Risk Explainability Attribution Chart */}
+            <RiskExplainabilityChart application={application} />
 
             {/* Reason Codes Breakdown */}
             <div className="reason-codes-section">

@@ -6,8 +6,11 @@ import path from 'path';
 function wrapAndSplitText(doc, text, maxWidth) {
   if (!text) return [];
   const clean = String(text)
-    .replace(/—/g, ' — ')
-    .replace(/([/_,-])/g, '$1 ')
+    .replace(/[—–]/g, ' - ')
+    .replace(/→/g, ' -> ')
+    .replace(/[•●○]/g, ' - ')
+    .replace(/[✓✔]/g, '[OK]')
+    .replace(/([/_,-;:])/g, '$1 ')
     .replace(/\s+/g, ' ')
     .trim();
   return doc.splitTextToSize(clean, maxWidth);
@@ -322,11 +325,13 @@ function generateReportForTest(application, auditLogs = []) {
   agents.forEach(agent => {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
-    const splitSummary = wrapAndSplitText(doc, agent.summary, contentWidth - 16);
-    const lineHeight = 3.8;
+    const textAvailableWidth = contentWidth - 12;
+    const splitSummary = wrapAndSplitText(doc, agent.summary, textAvailableWidth);
+    const lineHeight = 4.0;
     const textBlockHeight = splitSummary.length * lineHeight;
-    const cardHeaderHeight = 10.5;
-    const totalCardHeight = Math.max(16, cardHeaderHeight + textBlockHeight + 3.5);
+    const hasRole = Boolean(agent.role);
+    const cardHeaderHeight = hasRole ? 14.5 : 8.0;
+    const totalCardHeight = Math.max(18, cardHeaderHeight + textBlockHeight + 3.0);
 
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(203, 213, 225);
@@ -338,17 +343,19 @@ function generateReportForTest(application, auditLogs = []) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(30, 41, 59);
-    doc.text(`Agent: ${agent.name}`, marginX + 6, y + 4.5);
+    doc.text(`Agent: ${agent.name}`, marginX + 6, y + 5.0);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(100, 116, 139);
-    doc.text(agent.latency, pageWidth - marginX - 4, y + 4.5, { align: 'right' });
+    doc.text(agent.latency, pageWidth - marginX - 4, y + 5.0, { align: 'right' });
 
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(7.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text(agent.role, marginX + 6, y + 8.5);
+    if (hasRole) {
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text(agent.role, marginX + 6, y + 9.5);
+    }
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);

@@ -35,7 +35,10 @@ export default function Navbar() {
         <div className="navbar-links">
           <Link to="/" className="nav-link">Home</Link>
           {isAuthenticated && (
-            <Link to="/dashboard" className="nav-link">Dashboard Queue</Link>
+            <>
+              <Link to="/dashboard" className="nav-link">Queue</Link>
+              <Link to="/dashboard?tab=analytics" className="nav-link">Analytics</Link>
+            </>
           )}
         </div>
 

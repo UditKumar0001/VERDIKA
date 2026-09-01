@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { computeRiskExplainabilityFactors } from './riskExplainability';
 
 /**
  * Helper to safely break and split text for jsPDF without clipping or overflow.
@@ -8,8 +9,11 @@ import autoTable from 'jspdf-autotable';
 function wrapAndSplitText(doc, text, maxWidth) {
   if (!text) return [];
   const clean = String(text)
-    .replace(/—/g, ' — ')
-    .replace(/([/_,-])/g, '$1 ')
+    .replace(/[—–]/g, ' - ')
+    .replace(/→/g, ' -> ')
+    .replace(/[•●○]/g, ' - ')
+    .replace(/[✓✔]/g, '[OK]')
+    .replace(/([/_,-;:])/g, '$1 ')
     .replace(/\s+/g, ' ')
     .trim();
   return doc.splitTextToSize(clean, maxWidth);
@@ -498,6 +502,78 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
 
   y += 18;
 
+  // Visual Risk Factor Attribution & Explainability Chart
+  const explainFactors = computeRiskExplainabilityFactors(application).slice(0, 6);
+  if (explainFactors.length > 0) {
+    const chartRowHeight = 6.8;
+    const chartCardHeight = 11 + (explainFactors.length * chartRowHeight) + 4;
+    ensureSpace(chartCardHeight + 4);
+
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(marginX, y, contentWidth, chartCardHeight, 1.5, 1.5, 'FD');
+
+    // Chart Header
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(30, 41, 59);
+    doc.text('Risk Factor Attribution (Explainability Chart)', marginX + 6, y + 5.2);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.0);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Green = Protective (-%) | Red = Risk Trigger (+%)', pageWidth - marginX - 6, y + 5.2, { align: 'right' });
+
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.line(marginX + 4, y + 7.5, pageWidth - marginX - 4, y + 7.5);
+
+    const maxAbsWeight = Math.max(35, ...explainFactors.map(f => f.weightAbs));
+    const trackWidth = 50;
+    const trackX = marginX + 65;
+
+    explainFactors.forEach((factor, idx) => {
+      const rowY = y + 9.5 + (idx * chartRowHeight);
+      const isPositive = factor.type === 'positive';
+
+      // Left Factor Label
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(30, 41, 59);
+      doc.text(factor.name, marginX + 6, rowY + 3.2);
+
+      // Description Subtext
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.2);
+      doc.setTextColor(100, 116, 139);
+      const descText = factor.description.length > 40 ? factor.description.slice(0, 38) + '...' : factor.description;
+      doc.text(descText, marginX + 6, rowY + 5.8);
+
+      // Horizontal Bar Track
+      doc.setFillColor(226, 232, 240);
+      doc.roundedRect(trackX, rowY + 1.2, trackWidth, 3.8, 0.8, 0.8, 'F');
+
+      // Filled Bar
+      const barFillW = Math.max(6, (factor.weightAbs / maxAbsWeight) * trackWidth);
+      if (isPositive) {
+        doc.setFillColor(16, 185, 129); // Emerald
+      } else {
+        doc.setFillColor(225, 29, 72); // Rose Red
+      }
+      doc.roundedRect(trackX, rowY + 1.2, Math.min(trackWidth, barFillW), 3.8, 0.8, 0.8, 'F');
+
+      // Impact Tag / Label
+      const tagStr = `${factor.name}: ${isPositive ? factor.impact + '%' : '+' + factor.impact + '%'}`;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.2);
+      doc.setTextColor(isPositive ? 16 : 220, isPositive ? 185 : 38, isPositive ? 129 : 38);
+      doc.text(tagStr, trackX + trackWidth + 4, rowY + 4.0);
+    });
+
+    y += chartCardHeight + 5;
+  }
+
   // Reason Codes List with Safe Line Wrapping
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
@@ -600,7 +676,7 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
       name: 'DocumentVerificationAgent',
       role: 'KYC & Banking Format Integrity',
       summary: hasDocIssues
-        ? `Missing KYC items: ${missingDocs.join(', ') || 'None'}; Quality issues: ${reuploadDocs.join(', ') || 'None'} → Flagged for review.`
+        ? `Missing KYC items: ${missingDocs.join(', ') || 'None'}; Quality issues: ${reuploadDocs.join(', ') || 'None'} -> Flagged for review.`
         : 'Verified completeness and readability of GST, PAN, and Bank Statement documentation along with IFSC compliance.'
     },
     {
@@ -634,10 +710,10 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
 
     if (cleaned.includes('flagged for manual review') && (cleaned.match(/flagged for manual review/g) || []).length > 1) {
       cleaned = cleaned.replace(/ — flagged for manual review/g, '').replace(/ flagged for manual review/g, '');
-      cleaned = cleaned.trim() + ' → All flagged for manual review';
+      cleaned = cleaned.trim() + ' -> All flagged for manual review';
     }
 
-    return cleaned;
+    return cleaned.replace(/→/g, '->');
   };
 
   const agentListToRender = auditLogs && auditLogs.length > 0
@@ -649,21 +725,26 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
       }))
     : defaultAgentTraces.map((t) => ({ ...t, summary: formatAgentSummary(t.summary) }));
 
-  // Render each Agent block with safe text wrapping & page break protection
+  // Render each Agent block with safe text wrapping, clear subtitle margin & page break protection
   agentListToRender.forEach((agent) => {
+    // 1. Explicitly set font & size BEFORE wrapping calculation so text metrics match exactly
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
-    // Safe text width with ample 8mm inner padding on each side (182 - 16 = 166mm)
-    const splitSummary = wrapAndSplitText(doc, agent.summary, contentWidth - 16);
 
-    const lineHeight = 3.8;
+    // Inner text width leaves 6mm padding on left and right inside the card (182 - 12 = 170mm)
+    const textAvailableWidth = contentWidth - 12;
+    const splitSummary = wrapAndSplitText(doc, agent.summary, textAvailableWidth);
+
+    const lineHeight = 4.0;
     const textBlockHeight = splitSummary.length * lineHeight;
     const hasRole = Boolean(agent.role);
-    const cardHeaderHeight = hasRole ? 10.5 : 7.0;
-    const totalCardHeight = Math.max(16, cardHeaderHeight + textBlockHeight + 3.5);
+    
+    // Header height: with subtitle, title at y+5.0, subtitle at y+9.5, summary starts at y+14.5 (providing 5mm margin-bottom)
+    const cardHeaderHeight = hasRole ? 14.5 : 8.0;
+    const totalCardHeight = Math.max(18, cardHeaderHeight + textBlockHeight + 3.0);
 
     // Avoid splitting card across pages
-    ensureSpace(totalCardHeight + 3);
+    ensureSpace(totalCardHeight + 3.5);
 
     // Draw Card Background
     doc.setFillColor(248, 250, 252);
@@ -679,24 +760,24 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(30, 41, 59);
-    doc.text(`Agent: ${agent.name}`, marginX + 6, y + 4.5);
+    doc.text(`Agent: ${agent.name}`, marginX + 6, y + 5.0);
 
     if (agent.latency) {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(100, 116, 139);
-      doc.text(agent.latency, pageWidth - marginX - 4, y + 4.5, { align: 'right' });
+      doc.text(agent.latency, pageWidth - marginX - 4, y + 5.0, { align: 'right' });
     }
 
-    // Line 2: Role Label on distinct subline with proper vertical margin
+    // Line 2: Role Label on distinct subline with clear margin-bottom separation
     if (hasRole) {
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(7.5);
       doc.setTextColor(100, 116, 139);
-      doc.text(agent.role, marginX + 6, y + 8.5);
+      doc.text(agent.role, marginX + 6, y + 9.5);
     }
 
-    // Line 3+: Formatted Summary Text (strictly left-aligned, no stretching)
+    // Line 3+: Formatted Summary Text (strictly left-aligned, proper spacing below subtitle, no bleeding)
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(51, 65, 85);
