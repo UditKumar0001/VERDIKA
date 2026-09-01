@@ -1151,7 +1151,7 @@ export default function NewApplication({ publicCompany = null }) {
 
                     <div className="emi-metric-box">
                       <span className="emi-metric-label">Total Estimated Interest</span>
-                      <span className="emi-metric-val" style={{ color: 'var(--accent-cyan)' }}>
+                      <span className="emi-metric-val" style={{ color: 'var(--accent-blue)' }}>
                         ₹{emiCalc.totalInterest.toLocaleString('en-IN')}
                       </span>
                       <span className="emi-metric-sub">@ 14% reducing per annum</span>

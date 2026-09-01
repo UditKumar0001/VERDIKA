@@ -4,10 +4,12 @@ import { useAuth } from '../context/AuthContext';
 
 /**
  * Signup Page Component
- * Handles official registration for Finance Companies (Lenders/NBFCs).
- * Team members (Underwriters) are added exclusively via Admin Invite.
+ * Handles registration for:
+ * 1. Merchants (Business Applicants seeking credit evaluation)
+ * 2. Finance Companies (Lenders/NBFCs managing underwriting pipelines)
  */
 export default function Signup() {
+  const [accountType, setAccountType] = useState('merchant'); // 'merchant' | 'finance_company'
   const [companyName, setCompanyName] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -27,7 +29,12 @@ export default function Signup() {
     e.preventDefault();
     setError('');
 
-    if (!companyName.trim() || !name.trim() || !email.trim() || !password || !confirmPassword) {
+    if (accountType === 'finance_company' && !companyName.trim()) {
+      setError('Please provide your Finance Company / Organization name.');
+      return;
+    }
+
+    if (!name.trim() || !email.trim() || !password || !confirmPassword) {
       setError('Please fill in all required fields.');
       return;
     }
@@ -46,10 +53,10 @@ export default function Signup() {
     try {
       const payload = {
         name: name.trim(),
-        company_name: companyName.trim(),
         email: email.trim(),
         password,
-        role: 'admin'
+        role: accountType === 'merchant' ? 'merchant' : 'admin',
+        ...(accountType === 'finance_company' ? { company_name: companyName.trim() } : {})
       };
 
       await signup(payload);
@@ -66,38 +73,96 @@ export default function Signup() {
       <div className="auth-card" style={{ maxWidth: '480px' }}>
         <div className="auth-header">
           <img src="/logo.png" alt="Verdika Logo" className="auth-logo-img" />
-          <div className="auth-badge">Finance Company Onboarding</div>
-          <h2>Register Your Company</h2>
+          <div className="auth-badge">
+            {accountType === 'merchant' ? 'Merchant Portal Registration' : 'Finance Company Onboarding'}
+          </div>
+          <h2>
+            {accountType === 'merchant' ? 'Create Merchant Account' : 'Register Your Company'}
+          </h2>
           <p className="auth-subtitle">
-            Create your finance company account to deploy AI underwriting pipelines and generate dedicated public merchant application links.
+            {accountType === 'merchant'
+              ? 'Apply for business credit, track underwriting evaluation progress, and manage your loan facilities.'
+              : 'Deploy AI underwriting pipelines, manage risk parameters, and review incoming loan applications.'}
           </p>
+        </div>
+
+        {/* Account Type Selector Capsule */}
+        <div style={{
+          display: 'flex',
+          background: 'var(--bg-input)',
+          padding: '0.35rem',
+          borderRadius: '10px',
+          border: '1px solid var(--border-card)',
+          marginBottom: '1.5rem',
+          gap: '0.35rem'
+        }}>
+          <button
+            type="button"
+            onClick={() => { setAccountType('merchant'); setError(''); }}
+            style={{
+              flex: 1,
+              padding: '0.55rem 0.75rem',
+              borderRadius: '8px',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              border: 'none',
+              background: accountType === 'merchant' ? 'linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-indigo) 100%)' : 'transparent',
+              color: accountType === 'merchant' ? '#ffffff' : 'var(--text-dim)'
+            }}
+          >
+            🏪 Merchant / Applicant
+          </button>
+          <button
+            type="button"
+            onClick={() => { setAccountType('finance_company'); setError(''); }}
+            style={{
+              flex: 1,
+              padding: '0.55rem 0.75rem',
+              borderRadius: '8px',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              border: 'none',
+              background: accountType === 'finance_company' ? 'linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-indigo) 100%)' : 'transparent',
+              color: accountType === 'finance_company' ? '#ffffff' : 'var(--text-dim)'
+            }}
+          >
+            🏦 Finance Company / Lender
+          </button>
         </div>
 
         {error && <div className="auth-alert-error">{error}</div>}
 
         <form onSubmit={handleSubmit} className="auth-form">
-          <div className="form-group">
-            <label htmlFor="companyName">Finance Company / NBFC Name *</label>
-            <input
-              id="companyName"
-              type="text"
-              placeholder="e.g. BluePeak Capital, HDFC Finance"
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-              required
-              autoComplete="organization"
-            />
-            <span className="field-hint" style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>
-              Your dedicated link: <code style={{ color: 'var(--accent-cyan)' }}>/apply/{companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'your-company'}</code>
-            </span>
-          </div>
+          {accountType === 'finance_company' && (
+            <div className="form-group">
+              <label htmlFor="companyName">Finance Company / NBFC Name *</label>
+              <input
+                id="companyName"
+                type="text"
+                placeholder="e.g. BluePeak Capital, Apex Finance"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                required={accountType === 'finance_company'}
+                autoComplete="organization"
+              />
+              <span className="field-hint" style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '0.25rem' }}>
+                Your dedicated link: <code style={{ color: 'var(--accent-cyan)' }}>/apply/{companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'your-company'}</code>
+              </span>
+            </div>
+          )}
 
           <div className="form-group">
-            <label htmlFor="name">Administrator Full Name *</label>
+            <label htmlFor="name">
+              {accountType === 'merchant' ? 'Business Owner / Contact Full Name *' : 'Administrator Full Name *'}
+            </label>
             <input
               id="name"
               type="text"
-              placeholder="e.g. Priya Sharma"
+              placeholder={accountType === 'merchant' ? 'e.g. Rahul Verma' : 'e.g. Priya Sharma'}
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
@@ -106,11 +171,13 @@ export default function Signup() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="email">Work Email *</label>
+            <label htmlFor="email">
+              {accountType === 'merchant' ? 'Merchant Email Address *' : 'Work Email *'}
+            </label>
             <input
               id="email"
               type="email"
-              placeholder="admin@yourcompany.com"
+              placeholder={accountType === 'merchant' ? 'rahul@mybusiness.com' : 'admin@yourcompany.com'}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -139,7 +206,7 @@ export default function Signup() {
               >
                 {showPassword ? (
                   <svg className="password-eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z" />
                     <circle cx="12" cy="12" r="3" />
                   </svg>
                 ) : (
@@ -163,9 +230,6 @@ export default function Signup() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 autoComplete="new-password"
-                style={{
-                  borderColor: isPasswordMismatch ? '#ef4444' : (confirmPassword && password === confirmPassword ? '#10b981' : undefined)
-                }}
               />
               <button
                 type="button"
@@ -176,7 +240,7 @@ export default function Signup() {
               >
                 {showConfirmPassword ? (
                   <svg className="password-eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z" />
                     <circle cx="12" cy="12" r="3" />
                   </svg>
                 ) : (
@@ -188,28 +252,29 @@ export default function Signup() {
               </button>
             </div>
             {isPasswordMismatch && (
-              <span className="field-error-text" style={{ color: '#ef4444', fontSize: '0.78rem', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                ⚠️ Passwords do not match
-              </span>
-            )}
-            {confirmPassword && !isPasswordMismatch && (
-              <span style={{ color: '#10b981', fontSize: '0.78rem', marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                ✓ Passwords match
-              </span>
+              <span className="field-error-text">Passwords do not match.</span>
             )}
           </div>
 
-          <button type="submit" className="auth-submit-btn" disabled={isSubmitting}>
-            {isSubmitting ? 'Registering Company...' : 'Register Finance Company →'}
+          <button
+            type="submit"
+            className="auth-submit-btn"
+            disabled={isSubmitting || isPasswordMismatch}
+          >
+            {isSubmitting
+              ? 'Creating Account...'
+              : accountType === 'merchant'
+                ? 'Create Merchant Account →'
+                : 'Register Finance Company →'}
           </button>
         </form>
 
-        <div className="auth-footer" style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem', marginTop: '1.25rem' }}>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-            Looking to join an existing team? Underwriter accounts are <strong>invite-only</strong>. Please ask your administrator to send you a team invite link.
-          </p>
+        <div className="auth-footer">
           <p>
-            Already registered? <Link to="/login">Sign in here</Link>
+            Already have an account?{' '}
+            <Link to="/login" className="auth-link">
+              Sign In
+            </Link>
           </p>
         </div>
       </div>

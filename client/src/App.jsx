@@ -16,6 +16,7 @@ import Dashboard from './pages/Dashboard';
 import ApplicationDetail from './pages/ApplicationDetail';
 import NewApplication from './pages/NewApplication';
 import PublicApply from './pages/PublicApply';
+import CompanySelector from './pages/CompanySelector';
 import ApplicationStatus from './pages/ApplicationStatus';
 import AcceptInvite from './pages/AcceptInvite';
 
@@ -31,6 +32,7 @@ function App() {
               <Route path="/" element={<Landing />} />
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
+              <Route path="/apply" element={<CompanySelector />} />
               <Route path="/apply/:companySlug" element={<PublicApply />} />
               <Route path="/status/:applicationToken" element={<ApplicationStatus />} />
               <Route path="/invite/:token" element={<AcceptInvite />} />
@@ -41,14 +43,6 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <Dashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/apply"
-                element={
-                  <ProtectedRoute>
-                    <NewApplication />
                   </ProtectedRoute>
                 }
               />

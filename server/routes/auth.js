@@ -63,15 +63,39 @@ router.post('/signup', authLimiter, async (req, res) => {
       return res.status(409).json({ error: 'An account with this email address already exists.' });
     }
 
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+
+    // 1. Merchant Account Registration
+    if (role === 'merchant') {
+      const user = await User.create({
+        name: name || 'Merchant Applicant',
+        company_id: null,
+        email,
+        passwordHash,
+        role: 'merchant'
+      });
+
+      const token = generateToken(user, null);
+      setAuthCookie(res, token);
+
+      logger.info(`[Auth] Merchant registered: ${user.email} (User ID: ${user.id})`);
+
+      const sanitizedUser = user.sanitize();
+      return res.status(201).json({
+        message: 'Merchant account registered successfully',
+        user: sanitizedUser,
+        company: null
+      });
+    }
+
+    // 2. Finance Company Admin Registration
     const orgName = company_name || name || 'Finance Partner';
     const company = await Company.create({
       name: orgName,
       email
     });
     const company_id = company.id;
-
-    const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
 
     const user = await User.create({
       name: name || company_name || 'Admin',
@@ -244,14 +268,27 @@ router.post('/login', authLimiter, async (req, res) => {
     const { email, password } = req.body;
 
     const user = await User.findByEmail(email);
+    console.log('\n[LOGIN ATTEMPT DIAGNOSTICS]');
+    console.log('Searching for email:', email);
+    console.log('User record found?:', Boolean(user));
+    if (user) {
+      console.log('User ID:', user.id);
+      console.log('User Role:', user.role);
+    }
+
     if (!user) {
+      console.log('Login outcome: FAILED (User not found)');
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
+    console.log('Password bcrypt.compare match boolean:', isMatch);
+
     if (!isMatch) {
+      console.log('Login outcome: FAILED (Password mismatch)');
       return res.status(401).json({ error: 'Invalid email or password' });
     }
+    console.log('Login outcome: SUCCESS (Credentials verified)');
 
     // Generate 6-digit OTP and 5-minute expiration
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();

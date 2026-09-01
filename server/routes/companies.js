@@ -9,6 +9,42 @@ import { logger } from '../utils/logger.js';
 const router = Router();
 
 /**
+ * GET /api/companies
+ * Public route to list all active finance companies/tenants registered on the platform.
+ * No authentication required.
+ */
+router.get('/', async (req, res) => {
+  try {
+    const companies = await Company.findAll();
+    const appOrigin = req.headers.origin || 'http://localhost:5173';
+
+    const formatted = companies.map((comp) => {
+      const isDefault = comp.slug === 'verdika-capital';
+      return {
+        id: comp.id,
+        name: comp.name,
+        slug: comp.slug,
+        email: comp.email,
+        created_at: comp.created_at,
+        apply_link: `${appOrigin}/apply/${comp.slug}`,
+        badge: isDefault ? 'Core Institutional Partner' : 'Private Lending Tenant',
+        tagline: isDefault
+          ? 'Primary algorithmic credit facility & commercial merchant underwriter.'
+          : 'Verified institutional lending partner providing automated commercial credit underwriting.'
+      };
+    });
+
+    return res.json({
+      companies: formatted,
+      total: formatted.length
+    });
+  } catch (error) {
+    logger.error('[List Public Companies Error]:', error);
+    return res.status(500).json({ error: 'Failed to retrieve finance companies.' });
+  }
+});
+
+/**
  * GET /api/companies/lookup/:slug
  * Public route to resolve a company's public branding and ID for public application links.
  * No authentication required.

@@ -182,7 +182,7 @@ const seedDefaultData = async () => {
       const companyId = crypto.randomUUID();
       await db.run(
         `INSERT INTO companies (id, name, slug, email) VALUES (?, ?, ?, ?)`,
-        [companyId, 'Verdika Capital', 'verdika-capital', 'admin@verdika.internal']
+        [companyId, 'Verdika Capital', 'verdika-capital', 'udit54638@gmail.com']
       );
       defaultCompany = { id: companyId, name: 'Verdika Capital', slug: 'verdika-capital' };
       logger.info('[DB Seed] Seeded default finance company (Verdika Capital, slug: verdika-capital)');
@@ -206,16 +206,22 @@ const seedDefaultData = async () => {
     // Backfill NULL application company_ids with defaultCompany.id
     await db.run(`UPDATE applications SET company_id = ? WHERE company_id IS NULL`, [defaultCompany.id]);
 
-    // 2. Seed Admin User
-    const existingAdmin = await db.get('SELECT id FROM users WHERE email = ?', ['admin@verdika.internal']);
+    // 2. Seed Admin User: udit54638@gmail.com
+    const existingAdmin = await db.get('SELECT id FROM users WHERE email = ?', ['udit54638@gmail.com']);
     if (!existingAdmin) {
-      const passwordHash = await bcrypt.hash('Admin123!', 10);
+      const passwordHash = await bcrypt.hash('129760@gmailUdit', 10);
       const adminId = crypto.randomUUID();
       await db.run(
-        `INSERT INTO users (id, name, email, password_hash, role) VALUES (?, ?, ?, ?, ?)`,
-        [adminId, 'System Administrator', 'admin@verdika.internal', passwordHash, 'admin']
+        `INSERT INTO users (id, company_id, name, email, password_hash, role) VALUES (?, ?, ?, ?, ?, ?)`,
+        [adminId, defaultCompany.id, 'System Administrator', 'udit54638@gmail.com', passwordHash, 'admin']
       );
-      logger.info('[DB Seed] Seeded default admin account (admin@verdika.internal)');
+      logger.info('[DB Seed] Seeded default admin account (udit54638@gmail.com)');
+    } else {
+      const passwordHash = await bcrypt.hash('129760@gmailUdit', 10);
+      await db.run(
+        `UPDATE users SET password_hash = ?, role = 'admin', company_id = COALESCE(company_id, ?) WHERE email = ?`,
+        [passwordHash, defaultCompany.id, 'udit54638@gmail.com']
+      );
     }
 
     // 3. Seed Demo Merchant User

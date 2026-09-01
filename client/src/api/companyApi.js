@@ -6,6 +6,26 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 /**
+ * Public listing of all active registered finance companies
+ * @returns {Promise<Object>} Object containing companies array and total count
+ */
+export async function getPublicCompanies() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/companies`, {
+      method: 'GET'
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to load lending companies.');
+    }
+    return data;
+  } catch (error) {
+    throw new Error(error.message || 'Failed to load lending companies.');
+  }
+}
+
+/**
  * Public lookup of finance company details by slug
  * @param {string} slug 
  * @returns {Promise<Object>} Company details

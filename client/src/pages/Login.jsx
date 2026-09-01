@@ -301,7 +301,7 @@ export default function Login() {
                 <button
                   type="button"
                   className="demo-btn"
-                  onClick={() => handleDemoFill('admin@verdika.internal', 'Admin123!')}
+                  onClick={() => handleDemoFill('udit54638@gmail.com', '129760@gmailUdit')}
                 >
                   🛡️ Admin
                 </button>

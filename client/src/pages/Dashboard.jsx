@@ -315,61 +315,34 @@ function ReviewerDashboard({ user, company }) {
 
       {/* Finance Company Multi-Tenant Public Link Banner */}
       {company && (
-        <div
-          className="company-link-banner"
-          style={{
-            background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%)',
-            border: '1px solid var(--accent-blue)',
-            borderRadius: '12px',
-            padding: '1.25rem 1.5rem',
-            marginBottom: '1.75rem',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '1rem'
-          }}
-        >
-          <div style={{ flex: '1 1 320px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-              <span style={{ fontSize: '1.1rem' }}>🏦</span>
-              <span style={{ fontWeight: '800', color: 'var(--text-main)', fontSize: '1.05rem' }}>
+        <div className="company-link-banner">
+          <div className="company-link-info">
+            <div className="company-link-title-row">
+              <span style={{ fontSize: '1.15rem' }}>🏦</span>
+              <span className="company-link-name">
                 {company.name}
               </span>
-              <span className="badge badge-approved" style={{ fontSize: '0.65rem', textTransform: 'uppercase' }}>
+              <span className="badge badge-approved" style={{ fontSize: '0.68rem', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.5px' }}>
                 Private Tenant
               </span>
             </div>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: 0, lineHeight: 1.4 }}>
+            <p className="company-link-desc">
               Share this dedicated link with merchant applicants. All submissions are automatically tagged and isolated to your company's review queue.
             </p>
-            <div
-              style={{
-                marginTop: '0.65rem',
-                display: 'inline-flex',
-                alignItems: 'center',
-                background: 'rgba(0, 0, 0, 0.45)',
-                border: '1px solid var(--border-card)',
-                borderRadius: '6px',
-                padding: '0.35rem 0.75rem',
-                gap: '0.6rem',
-                maxWidth: '100%',
-                overflow: 'hidden'
-              }}
-            >
-              <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem', fontWeight: 600 }}>Public Merchant Link:</span>
-              <code style={{ color: 'var(--accent-cyan)', fontSize: '0.82rem', wordBreak: 'break-all' }}>
+            <div className="company-link-url-box">
+              <span className="company-link-url-label">Public Merchant Link:</span>
+              <code className="company-link-url-code">
                 {company.apply_link || `${window.location.origin}/apply/${company.slug}`}
               </code>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <div className="company-link-actions">
             <button
               type="button"
               className="btn-primary"
               onClick={handleCopyLink}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', fontSize: '0.85rem' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', fontSize: '0.85rem', fontWeight: 600 }}
             >
               <span>{copied ? '✓ Copied to Clipboard!' : '📋 Copy Link'}</span>
             </button>
@@ -378,7 +351,7 @@ function ReviewerDashboard({ user, company }) {
               target="_blank"
               rel="noopener noreferrer"
               className="btn-secondary"
-              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', fontSize: '0.85rem', textDecoration: 'none' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', fontSize: '0.85rem', textDecoration: 'none', fontWeight: 600 }}
             >
               <span>↗ Open Gateway</span>
             </a>

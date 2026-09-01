@@ -1,10 +1,11 @@
+import { Resend } from 'resend';
 import nodemailer from 'nodemailer';
 import { Notification } from '../models/Notification.js';
 import { logger } from '../utils/logger.js';
 import { config } from '../config/env.js';
 
 /**
- * Creates Nodemailer transporter (or null if SMTP not configured)
+ * Creates Nodemailer transporter as backup if SMTP is configured
  */
 function createTransporter() {
   if (process.env.SMTP_HOST && process.env.SMTP_USER) {
@@ -98,9 +99,9 @@ export function formatDecisionEmail({ application, decision, customNotes }) {
   } else {
     actionMessage = `
       <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 16px; margin: 20px 0; border-radius: 4px;">
-        <h3 style="color: #92400e; margin: 0 0 8px 0; font-size: 16px;">Additional Review in Progress</h3>
-        <p style="color: #78350f; margin: 0; font-size: 14px; line-height: 1.5;">
-          Your application has been routed to our senior credit committee for supplemental document verification. You may track real-time updates via your merchant status link below.
+        <h3 style="color: #92400e; margin: 0 0 8px 0; font-size: 16px;">Underwriter Inspection</h3>
+        <p style="color: #b45309; margin: 0; font-size: 14px; line-height: 1.5;">
+          Your application has been routed to our credit underwriting desk for routine verification. We will notify you as soon as the manual assessment concludes.
         </p>
       </div>
     `;
@@ -117,136 +118,148 @@ export function formatDecisionEmail({ application, decision, customNotes }) {
       <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
         
         <!-- Header -->
-        <div style="background: #0f172a; padding: 24px; text-align: left; border-bottom: 3px solid #2563eb;">
-          <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.5px;">VERDIKA</h1>
-          <p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 12px;">Autonomous Multi-Agent Loan Underwriting</p>
+        <div style="background: #0f172a; padding: 24px; text-align: left; border-bottom: 3px solid ${badgeColor};">
+          <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0.5px;">VERDIKA RISK ENGINE</h1>
+          <p style="color: #94a3b8; margin: 4px 0 0 0; font-size: 13px;">Automated Merchant Underwriting Assessment</p>
         </div>
 
-        <!-- Body -->
+        <!-- Body Content -->
         <div style="padding: 32px 24px;">
-          <p style="font-size: 16px; margin-top: 0;">Dear <strong>${businessName}</strong>,</p>
-          
-          <p style="font-size: 14px; line-height: 1.6; color: #475569;">
-            We have completed the comprehensive underwriting evaluation for your commercial financing application (Reference: <code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 13px; color: #0f172a;">${appId}</code>).
+          <p style="font-size: 16px; color: #334155; margin-top: 0;">
+            Dear <strong>${businessName}</strong>,
+          </p>
+          <p style="font-size: 15px; line-height: 1.6; color: #475569;">
+            Thank you for applying for a commercial credit facility with Verdika. Our AI Multi-Agent Underwriting Engine and credit risk team have completed the evaluation of application <code>${appId}</code>.
           </p>
 
-          <!-- Decision Badge -->
-          <div style="margin: 24px 0; text-align: center;">
-            <div style="display: inline-block; background: ${badgeBg}; border: 1.5px solid ${badgeBorder}; color: ${badgeColor}; padding: 10px 24px; border-radius: 8px; font-weight: 800; font-size: 16px; letter-spacing: 1px;">
-              DECISION: ${decisionLabel}
+          <!-- Decision Banner -->
+          <div style="background: ${badgeBg}; border: 1px solid ${badgeBorder}; border-radius: 8px; padding: 18px; margin: 24px 0; text-align: center;">
+            <div style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">Application Status</div>
+            <div style="font-size: 24px; font-weight: 800; color: ${badgeColor}; letter-spacing: 0.5px;">
+              ${decisionLabel}
             </div>
           </div>
 
           ${actionMessage}
 
-          <!-- Live Status Tracking Link -->
-          <div style="margin: 30px 0 20px 0; text-align: center;">
-            <a href="${statusUrl}" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 600; font-size: 14px;">
-              View Live Application Status →
+          <!-- Details Table -->
+          <table style="width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 14px;">
+            <tr style="border-bottom: 1px solid #f1f5f9;">
+              <td style="padding: 10px 0; color: #64748b;">Application ID:</td>
+              <td style="padding: 10px 0; font-weight: 600; text-align: right; color: #1e293b; font-family: monospace;">${appId}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #f1f5f9;">
+              <td style="padding: 10px 0; color: #64748b;">Business Legal Name:</td>
+              <td style="padding: 10px 0; font-weight: 600; text-align: right; color: #1e293b;">${businessName}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #f1f5f9;">
+              <td style="padding: 10px 0; color: #64748b;">Assessed On:</td>
+              <td style="padding: 10px 0; font-weight: 600; text-align: right; color: #1e293b;">${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+            </tr>
+          </table>
+
+          <!-- Track Status Link Button -->
+          <div style="text-align: center; margin: 32px 0 16px 0;">
+            <a href="${statusUrl}" style="background: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-weight: 600; font-size: 14px; display: inline-block;">
+              View Application Portal →
             </a>
           </div>
-
-          <p style="font-size: 12px; color: #64748b; text-align: center; margin-top: 10px;">
-            Or access directly at: <a href="${statusUrl}" style="color: #2563eb;">${statusUrl}</a>
-          </p>
-
-          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 28px 0;" />
-
-          <p style="font-size: 12px; color: #94a3b8; line-height: 1.5; margin: 0;">
-            This is an automated notification from Verdika Underwriting Systems. If you have inquiries, please reply directly or contact support with your Application Reference <strong>${appId}</strong>.
-          </p>
         </div>
+
+        <!-- Footer -->
+        <div style="background: #f8fafc; padding: 16px 24px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center;">
+          <p style="margin: 0;">This is an automated regulatory notification from Verdika Financial Technologies.</p>
+          <p style="margin: 4px 0 0 0;">For inquiries, please reference ID: <strong>${appId}</strong></p>
+        </div>
+
       </div>
     </body>
     </html>
   `;
 
   const text = `
-VERDIKA LOAN UNDERWRITING NOTIFICATION
-=========================================
-Subject: ${subject}
-Application Reference: ${appId}
+VERDIKA RISK ENGINE: APPLICATION DECISION
+==========================================
 Applicant: ${businessName}
+Application ID: ${appId}
+Decision Verdict: ${decisionLabel}
 
-DECISION: ${decisionLabel}
+${isApproved ? 'Your credit application has been approved. A relationship manager will contact you within 24 business hours for electronic agreement signing and disbursement.' : ''}
+${isRejected ? formatPoliteRejectionReason(application, customNotes) : ''}
 
-${isApproved ? 'Next Steps: Our Credit Operations team will contact you within 24 business hours with loan disbursement details.' : ''}
-${isRejected ? `Reason: ${formatPoliteRejectionReason(application, customNotes)}` : ''}
-
-You can track your live application status anytime here:
-${statusUrl}
-=========================================
+Track real-time status online at: ${statusUrl}
+==========================================
   `.trim();
 
   return { subject, html, text, recipientEmail, businessName };
 }
 
 /**
- * Service to dispatch decision notifications to merchants and audit log them
+ * Sends decision notification email to merchant and logs audit event
  */
-export async function sendDecisionNotification({ application, decision, customNotes = '', attachments = [] }) {
-  if (!application) {
-    logger.warn('[NotificationService] No application provided for notification.');
-    return { success: false, error: 'No application provided' };
-  }
+export async function sendDecisionNotification({ application, decision, customNotes = '' }) {
+  const { subject, html, text, recipientEmail, businessName } = formatDecisionEmail({ application, decision, customNotes });
+  const appId = application.id || 'N/A';
 
-  const { subject, html, text, recipientEmail, businessName } = formatDecisionEmail({
-    application,
-    decision,
-    customNotes
-  });
-
-  let notifRecord = null;
   try {
-    const transporter = createTransporter();
+    let sentVia = 'Sandbox';
 
-    if (transporter) {
-      await transporter.sendMail({
-        from: process.env.SMTP_FROM || '"Verdika Underwriting" <no-reply@verdika.com>',
+    if (process.env.RESEND_API_KEY) {
+      const resendClient = new Resend(process.env.RESEND_API_KEY);
+      const fromAddress = process.env.RESEND_FROM || 'Verdika Security <onboarding@resend.dev>';
+      const { data, error } = await resendClient.emails.send({
+        from: fromAddress,
         to: recipientEmail,
         subject,
-        text,
         html,
-        attachments
+        text
       });
-
-      logger.info(`[NotificationService] Successfully sent SMTP email to ${recipientEmail} for App: ${application.id}`);
-      notifRecord = await Notification.create({
-        application_id: application.id,
-        recipient_email: recipientEmail,
-        recipient_name: businessName,
-        subject,
-        decision,
-        status: 'sent',
-        content_html: html
-      });
+      if (error) {
+        logger.error('[Resend Decision Email Error]:', error);
+      } else {
+        sentVia = `Resend (ID: ${data?.id})`;
+      }
     } else {
-      // Sandbox / Test Mode delivery simulation
-      logger.info(`[NotificationService: Sandbox Mode] Simulated email sent to ${recipientEmail} for App: ${application.id} [Decision: ${decision}]`);
-      notifRecord = await Notification.create({
-        application_id: application.id,
-        recipient_email: recipientEmail,
-        recipient_name: businessName,
-        subject,
-        decision,
-        status: 'sandbox_simulated',
-        content_html: html
-      });
+      const transporter = createTransporter();
+      if (transporter) {
+        await transporter.sendMail({
+          from: process.env.SMTP_FROM || '"Verdika Decisions" <notifications@verdika.com>',
+          to: recipientEmail,
+          subject,
+          text,
+          html
+        });
+        sentVia = 'SMTP';
+      }
     }
 
-    return { success: true, notification: notifRecord, sandbox: !transporter };
-  } catch (err) {
-    logger.error(`[NotificationService Error] Failed to send email to ${recipientEmail}:`, err.message);
+    const notifRecord = await Notification.create({
+      application_id: application.id,
+      recipient_email: recipientEmail,
+      subject,
+      content_text: text,
+      content_html: html,
+      status: 'sent'
+    });
 
-    // Persist failure to audit log without throwing
+    logger.info(`[NotificationService] Sent decision notification to ${recipientEmail} for App: ${appId} [Decision: ${decision}, SentVia: ${sentVia}]`);
+
+    return {
+      success: true,
+      sentVia,
+      notification: notifRecord
+    };
+
+  } catch (err) {
+    logger.error(`[NotificationService Error] Failed to send decision email to ${recipientEmail}:`, err.message);
+
+    let notifRecord = null;
     try {
       notifRecord = await Notification.create({
         application_id: application.id,
         recipient_email: recipientEmail,
-        recipient_name: businessName,
         subject,
-        decision,
-        status: 'failed',
+        content_text: text,
         content_html: html,
         error: err.message
       });
@@ -259,7 +272,7 @@ export async function sendDecisionNotification({ application, decision, customNo
 }
 
 /**
- * Sends a 6-digit OTP verification email for two-factor authentication
+ * Sends a 6-digit OTP verification email for two-factor authentication via Resend HTTPS API
  */
 export async function sendOtpEmail({ recipientEmail, recipientName = 'Underwriter', otpCode, expiresMinutes = 5 }) {
   const subject = `Your Verdika Login Verification Code: ${otpCode}`;
@@ -318,25 +331,63 @@ If you did not initiate this login, please secure your account immediately.
 ==========================================
   `.trim();
 
-  try {
-    const transporter = createTransporter();
-    if (transporter) {
-      await transporter.sendMail({
+  console.log('\n[2FA RESEND DISPATCH START]');
+  console.log('Recipient Email:', recipientEmail);
+  console.log('OTP Code:', otpCode);
+
+  // 1. Primary Dispatch Method: Resend HTTPS API (Port 443 - Bypasses SMTP blocks)
+  if (process.env.RESEND_API_KEY) {
+    const fromAddress = process.env.RESEND_FROM || 'Verdika Security <onboarding@resend.dev>';
+    console.log('Using Resend HTTPS API. From Address:', fromAddress);
+
+    try {
+      const resendClient = new Resend(process.env.RESEND_API_KEY);
+      const { data, error } = await resendClient.emails.send({
+        from: fromAddress,
+        to: recipientEmail,
+        subject,
+        html,
+        text
+      });
+
+      if (error) {
+        console.error('❌ [Resend Error]:', JSON.stringify(error, null, 2));
+        logger.info(`[2FA Service Fallback] OTP for ${recipientEmail}: ${otpCode}`);
+        return { success: false, error, otpCode, fallback: true };
+      }
+
+      console.log('✅ [Resend Success]:', JSON.stringify(data, null, 2));
+      logger.info(`[2FA Service] Sent OTP email via Resend to ${recipientEmail} [Message ID: ${data?.id}]`);
+      return { success: true, data, otpCode };
+    } catch (err) {
+      console.error('❌ [Resend Exception]:', err);
+      logger.info(`[2FA Service Fallback] OTP for ${recipientEmail}: ${otpCode}`);
+      return { success: false, error: err.message, otpCode, fallback: true };
+    }
+  }
+
+  // 2. Secondary Fallback Method: SMTP (if configured)
+  const transporter = createTransporter();
+  if (transporter) {
+    console.log('Using Nodemailer SMTP fallback...');
+    try {
+      const sendResult = await transporter.sendMail({
         from: process.env.SMTP_FROM || '"Verdika Security" <no-reply@verdika.com>',
         to: recipientEmail,
         subject,
         text,
         html
       });
-      logger.info(`[2FA Service] Sent OTP code via SMTP to ${recipientEmail}`);
-    } else {
-      logger.info(`[2FA Service: Sandbox Mode] Generated 6-digit OTP for ${recipientEmail}: ${otpCode} (Expires in ${expiresMinutes}m)`);
+      console.log('✅ [SMTP sendMail SUCCESS]:', sendResult);
+      return { success: true, otpCode, sendResult };
+    } catch (err) {
+      console.error('❌ [SMTP sendMail ERROR]:', err.message);
+      logger.info(`[2FA Service Fallback] OTP for ${recipientEmail}: ${otpCode}`);
+      return { success: false, otpCode, error: err.message, fallback: true };
     }
-    return { success: true, otpCode };
-  } catch (err) {
-    logger.error(`[2FA Service Error] Failed to dispatch OTP to ${recipientEmail}:`, err.message);
-    logger.info(`[2FA Service Fallback] OTP for ${recipientEmail}: ${otpCode}`);
-    return { success: true, otpCode, fallback: true };
   }
-}
 
+  // 3. Sandbox Terminal Mode
+  console.log('ℹ️ [2FA Sandbox Mode] No email provider configured. OTP:', otpCode);
+  return { success: true, otpCode, sandbox: true };
+}

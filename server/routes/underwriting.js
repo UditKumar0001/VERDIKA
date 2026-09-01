@@ -35,22 +35,29 @@ router.post('/validate-bank-account', async (req, res) => {
 /**
  * GET /api/underwriting/applications
  * Returns list of underwriting applications with optional status filtering and search.
- * Multi-tenant data isolation: strictly scoped to req.user.company_id if associated with a finance company.
- * Restricted to roles: underwriter, admin, risk_officer.
+ * Role-Based Access Control & Scoping:
+ *  - 'merchant': strictly filtered by user_id = req.user.id (returns only own submitted applications)
+ *  - 'underwriter' | 'admin' | 'risk_officer' | 'viewer': strictly filtered by company_id = req.user.company_id
  */
 router.get('/applications', requireAuth, async (req, res) => {
   try {
-    if (!req.user || !['underwriter', 'admin', 'risk_officer'].includes(req.user.role)) {
-      return res.status(403).json({ error: 'Forbidden: Underwriter or Admin access required.' });
-    }
-
+    const userRole = req.user?.role || 'merchant';
+    const userCompanyId = req.user?.company_id || req.user?.companyId;
     const { status, search } = req.query;
-    const userCompanyId = req.user.company_id || req.user.companyId;
 
-    // Filter by company_id if user belongs to a specific finance company
     const filters = { status, search };
-    if (userCompanyId && req.user.role !== 'admin') {
-      filters.company_id = userCompanyId;
+
+    // 1. Merchant Role -> Scoped to user's own submitted applications
+    if (userRole === 'merchant') {
+      filters.user_id = req.user.id;
+    }
+    // 2. Underwriter / Admin / Risk Officer / Finance Company -> Scoped to company queue
+    else if (['underwriter', 'admin', 'risk_officer', 'viewer', 'finance_company'].includes(userRole)) {
+      if (userCompanyId) {
+        filters.company_id = userCompanyId;
+      }
+    } else {
+      return res.status(403).json({ error: 'Forbidden: Valid role required.' });
     }
 
     const applications = await Application.findAll(filters);
@@ -64,28 +71,34 @@ router.get('/applications', requireAuth, async (req, res) => {
 /**
  * GET /api/underwriting/applications/:id
  * Fetches an individual application with its complete audit trail.
- * Enforces company-level tenant isolation.
- * Restricted to roles: underwriter, admin, risk_officer.
+ * Enforces role-based applicant and company-level tenant isolation.
  */
 router.get('/applications/:id', requireAuth, async (req, res) => {
   try {
-    if (!req.user || !['underwriter', 'admin', 'risk_officer'].includes(req.user.role)) {
-      return res.status(403).json({ error: 'Forbidden: Underwriter or Admin access required.' });
-    }
-
     const { id } = req.params;
     const application = await Application.findById(id);
     if (!application) {
       return res.status(404).json({ error: 'Application not found.' });
     }
 
-    const userCompanyId = req.user.company_id || req.user.companyId;
-    if (userCompanyId && application.company_id && application.company_id !== userCompanyId && req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Access denied: Application belongs to another company.' });
+    const userRole = req.user?.role || 'merchant';
+    const userCompanyId = req.user?.company_id || req.user?.companyId;
+
+    // Role-based Access Control:
+    if (userRole === 'merchant') {
+      if (application.user_id && application.user_id !== req.user.id) {
+        return res.status(403).json({ error: 'Access denied: You can only view your own applications.' });
+      }
+    } else if (['underwriter', 'admin', 'risk_officer', 'viewer', 'finance_company'].includes(userRole)) {
+      if (userCompanyId && application.company_id && application.company_id !== userCompanyId) {
+        return res.status(403).json({ error: 'Access denied: Application belongs to another company.' });
+      }
+    } else {
+      return res.status(403).json({ error: 'Forbidden: Access denied.' });
     }
 
     // Record reviewer view activity in audit log (debounced to avoid duplicate logs on rapid refresh)
-    if (req.user) {
+    if (req.user && ['underwriter', 'admin', 'risk_officer'].includes(userRole)) {
       const reviewerName = req.user.name || req.user.email || 'Underwriter';
       const existingLogs = await AuditLog.findByApplicationId(id);
       const lastView = existingLogs.filter(l => (l.actor === reviewerName || l.actor === req.user.id) && (l.agent_name === 'ReviewerActivity' || l.agentName === 'ReviewerActivity')).pop();
