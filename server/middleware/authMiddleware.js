@@ -21,10 +21,15 @@ export const requireAuth = (req, res, next) => {
   }
 };
 
-export const requireRole = (role) => {
+export const requireRole = (roleOrRoles) => {
   return (req, res, next) => {
-    if (!req.user || req.user.role !== role) {
-      return res.status(403).json({ error: 'Forbidden: Insufficient permissions' });
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized: Authentication required' });
+    }
+
+    const allowed = Array.isArray(roleOrRoles) ? roleOrRoles : [roleOrRoles];
+    if (!allowed.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Forbidden: Insufficient permissions for this resource' });
     }
     next();
   };

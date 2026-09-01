@@ -154,7 +154,7 @@ export default function Landing() {
         </div>
 
         {/* Key Differentiators Section */}
-        <div className="stack-section" id="key-diff-section">
+        <div className="stack-section" id="features">
           <div className="landing-section">
             <div className="section-header-center">
               <span className="preset-badge">Core Advantages</span>
@@ -218,35 +218,35 @@ export default function Landing() {
                   <span className="agent-icon-badge">📊</span>
                   <div>
                     <h3 className="agent-name">DataAgent</h3>
-                    <span className="agent-type">Data Normalization</span>
+                    <span className="agent-type">Data Hygiene &amp; Schema</span>
                   </div>
                 </div>
                 <p className="agent-desc">
-                  Ingests raw transaction histories, computes sales velocity trends, revenue volatility, and benchmarks merchant metrics against category norms.
+                  Validates inbound payloads, computes rolling velocity, standardizes bank and accounting data feeds, and runs Razorpay Fund Account validation.
                 </p>
               </div>
 
               {/* Agent 2 */}
               <div className="agent-card">
                 <div className="agent-card-header">
-                  <span className="agent-icon-badge">🛡️</span>
+                  <span className="agent-icon-badge">🎯</span>
                   <div>
                     <h3 className="agent-name">RiskAgent</h3>
                     <span className="agent-type">Probabilistic Scoring</span>
                   </div>
                 </div>
                 <p className="agent-desc">
-                  Calculates calibrated risk scores (0.0 – 1.0) with weighted reason code contributions and near-threshold uncertainty penalties.
+                  Calculates calibrated default probability, evaluates debt service coverage, and assesses cash-flow stability metrics.
                 </p>
               </div>
 
               {/* Agent 3 */}
               <div className="agent-card">
                 <div className="agent-card-header">
-                  <span className="agent-icon-badge">🚨</span>
+                  <span className="agent-icon-badge">🛡️</span>
                   <div>
                     <h3 className="agent-name">AdversarialAgent</h3>
-                    <span className="agent-type">Fraud Stress Testing</span>
+                    <span className="agent-type">Fraud &amp; Manipulation</span>
                   </div>
                 </div>
                 <p className="agent-desc">
@@ -286,7 +286,7 @@ export default function Landing() {
         </div>
 
         {/* Visual Pipeline Sequence Banner */}
-        <div className="stack-section" id="flow-section">
+        <div className="stack-section" id="how-it-works">
           <div className="landing-section">
             <div className="dashboard-card pipeline-sequence-card">
               <h3 className="card-title" style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
@@ -329,7 +329,7 @@ export default function Landing() {
       </div>
 
       {/* FAQ Accordion Section */}
-      <div className="landing-section faq-section">
+      <div className="landing-section faq-section" id="faq">
         <div className="faq-grid">
           <div className="faq-left">
             <span className="preset-badge">Got Questions?</span>

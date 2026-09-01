@@ -165,6 +165,13 @@ router.post('/apply-public/:companySlug', async (req, res) => {
       return res.status(404).json({ error: 'Invalid or expired application link. Company not found.' });
     }
 
+    if (company.status === 'removed') {
+      logger.warn(`[Apply Public Blocked] Merchant attempted application to deactivated company: ${company.name}`);
+      return res.status(403).json({
+        error: 'This application link is no longer active. Submissions are temporarily paused for this finance company.'
+      });
+    }
+
     if (!req.body || typeof req.body !== 'object') {
       return res.status(400).json({ error: 'Invalid request payload.' });
     }

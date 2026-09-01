@@ -73,6 +73,8 @@ export default function Login() {
         setStep('otp');
         setOtpDigits(['', '', '', '', '', '']);
         setOtpCooldown(30); // 30-second cooldown before resend
+      } else if (res?.user?.role === 'super_admin') {
+        navigate('/super-admin/dashboard');
       } else {
         navigate('/dashboard');
       }
@@ -137,11 +139,15 @@ export default function Login() {
 
     setIsVerifyingOtp(true);
     try {
-      await verifyOtp({
+      const verifyRes = await verifyOtp({
         temp_token: tempToken,
         otp: fullOtp
       });
-      navigate('/dashboard');
+      if (verifyRes?.user?.role === 'super_admin') {
+        navigate('/super-admin/dashboard');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err.message || 'Verification failed. Please check the code and try again.');
     } finally {
@@ -304,6 +310,14 @@ export default function Login() {
                   onClick={() => handleDemoFill('udit54638@gmail.com', '129760@gmailUdit')}
                 >
                   🛡️ Admin
+                </button>
+                <button
+                  type="button"
+                  className="demo-btn"
+                  style={{ borderColor: 'rgba(6, 182, 212, 0.4)', color: 'var(--accent-cyan)' }}
+                  onClick={() => handleDemoFill('udit47656@gmail.com', '47656*ShahUdit')}
+                >
+                  ⚡ Super Admin
                 </button>
               </div>
             </div>

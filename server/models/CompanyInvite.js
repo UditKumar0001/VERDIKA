@@ -84,6 +84,13 @@ export class CompanyInvite {
     return rows.map((r) => CompanyInvite.fromRow(r));
   }
 
+  static async findSuperAdminInvites() {
+    const rows = await db.all(
+      `SELECT * FROM company_invites WHERE role = 'super_admin' ORDER BY created_at DESC`
+    );
+    return rows.map((r) => CompanyInvite.fromRow(r));
+  }
+
   static async markAccepted(id) {
     await db.run('UPDATE company_invites SET status = ? WHERE id = ?', ['accepted', id]);
     const row = await db.get('SELECT * FROM company_invites WHERE id = ?', [id]);
@@ -91,7 +98,17 @@ export class CompanyInvite {
   }
 
   static async revoke(id, company_id) {
-    await db.run('UPDATE company_invites SET status = ? WHERE id = ? AND company_id = ?', ['revoked', id, company_id]);
+    if (company_id) {
+      await db.run('UPDATE company_invites SET status = ? WHERE id = ? AND company_id = ?', ['revoked', id, company_id]);
+    } else {
+      await db.run('UPDATE company_invites SET status = ? WHERE id = ?', ['revoked', id]);
+    }
+    const row = await db.get('SELECT * FROM company_invites WHERE id = ?', [id]);
+    return CompanyInvite.fromRow(row);
+  }
+
+  static async revokeSuperAdminInvite(id) {
+    await db.run(`UPDATE company_invites SET status = 'revoked' WHERE id = ? AND role = 'super_admin'`, [id]);
     const row = await db.get('SELECT * FROM company_invites WHERE id = ?', [id]);
     return CompanyInvite.fromRow(row);
   }

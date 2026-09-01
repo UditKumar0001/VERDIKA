@@ -5,10 +5,10 @@ import { useAuth } from '../context/AuthContext';
 /**
  * ProtectedRoute Component
  * Wraps routes requiring authentication and redirects unauthenticated users to /login
- * once the auth check finishes loading.
+ * once the auth check finishes loading. Also validates allowedRoles when specified.
  */
-export default function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
+export default function ProtectedRoute({ children, allowedRoles }) {
+  const { user, isAuthenticated, loading } = useAuth();
 
   if (loading) {
     return (
@@ -25,8 +25,20 @@ export default function ProtectedRoute({ children }) {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && Array.isArray(allowedRoles) && !allowedRoles.includes(user.role)) {
+    if (user.role === 'super_admin') {
+      return <Navigate to="/super-admin/dashboard" replace />;
+    }
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // If super_admin attempts to navigate to regular dashboard, redirect to super-admin dashboard
+  if (!allowedRoles && user.role === 'super_admin') {
+    return <Navigate to="/super-admin/dashboard" replace />;
   }
 
   return children ? children : <Outlet />;

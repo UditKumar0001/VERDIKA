@@ -1,4 +1,3 @@
-import { Resend } from 'resend';
 import nodemailer from 'nodemailer';
 import { Notification } from '../models/Notification.js';
 import { logger } from '../utils/logger.js';
@@ -8,18 +7,130 @@ import { config } from '../config/env.js';
  * Creates Nodemailer transporter as backup if SMTP is configured
  */
 function createTransporter() {
-  if (process.env.SMTP_HOST && process.env.SMTP_USER) {
+  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS || process.env.SMTP_PASSWORD;
+
+  if (user && pass && !pass.includes('<') && !pass.includes('paste your')) {
     return nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
+      host,
       port: Number(process.env.SMTP_PORT) || 587,
-      secure: process.env.SMTP_SECURE === 'true',
+      secure: process.env.SMTP_SECURE === 'true' || Number(process.env.SMTP_PORT) === 465,
       auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS || process.env.SMTP_PASSWORD
-      }
+        user,
+        pass: pass.replace(/\s+/g, '') // strip any spaces from App Passwords
+      },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000
     });
   }
   return null;
+}
+
+/**
+ * Central transactional email dispatch function
+ * Primary provider: Brevo (formerly Sendinblue) Transactional REST API
+ * Fallback provider: Nodemailer SMTP
+ */
+export async function sendEmail({
+  to,
+  subject,
+  html,
+  text,
+  fromEmail,
+  fromName
+}) {
+  const senderEmail = fromEmail || process.env.BREVO_FROM_EMAIL || 'security@verdika.internal';
+  const senderName = fromName || process.env.BREVO_FROM_NAME || 'Verdika Security';
+  const brevoApiKey = process.env.BREVO_API_KEY?.trim();
+
+  // 1. Primary Dispatch Method: Brevo HTTPS REST API
+  if (brevoApiKey && !brevoApiKey.includes('<paste') && !brevoApiKey.includes('your_brevo')) {
+    try {
+      logger.info(`[Email Service] Attempting delivery via Brevo to ${to} (${subject})...`);
+
+      const brevoPayload = {
+        sender: {
+          name: senderName,
+          email: senderEmail
+        },
+        to: [
+          {
+            email: to.trim().toLowerCase()
+          }
+        ],
+        subject: subject,
+        htmlContent: html,
+        textContent: text || ''
+      };
+
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': brevoApiKey,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(brevoPayload)
+      });
+
+      const responseData = await response.json().catch(() => ({}));
+
+      if (response.ok) {
+        logger.info(`✅ [Brevo Delivery SUCCESS] Message ID: ${responseData.messageId} delivered to ${to}`);
+        return {
+          success: true,
+          provider: 'Brevo',
+          messageId: responseData.messageId
+        };
+      }
+
+      // Log specific diagnostic error on failure
+      logger.error(`❌ [Brevo Delivery Error ${response.status}]:`, JSON.stringify(responseData, null, 2));
+
+      if (response.status === 401) {
+        logger.warn('⚠️ [Brevo Auth Warning]: Invalid or expired BREVO_API_KEY. Please verify your Brevo API key in .env.');
+      } else if (response.status === 400 && responseData.message?.includes('sender')) {
+        logger.warn(`⚠️ [Brevo Sender Warning]: Sender email "${senderEmail}" may need verification in your Brevo account dashboard (Senders & IP).`);
+      }
+    } catch (apiErr) {
+      logger.error(`❌ [Brevo Exception]:`, apiErr.message);
+    }
+  } else {
+    logger.info(`[Email Service] No active Brevo API key configured in .env.`);
+  }
+
+  // 2. Secondary Fallback Method: Nodemailer SMTP (if configured)
+  const transporter = createTransporter();
+  if (transporter) {
+    logger.info(`[Email Service] Attempting fallback delivery via SMTP (${process.env.SMTP_HOST || 'smtp.gmail.com'})...`);
+    try {
+      const sendResult = await transporter.sendMail({
+        from: process.env.SMTP_FROM || `"${senderName}" <${process.env.SMTP_USER}>`,
+        to,
+        subject,
+        text,
+        html
+      });
+      logger.info(`✅ [SMTP Delivery SUCCESS]: Message ID ${sendResult?.messageId}`);
+      return {
+        success: true,
+        provider: 'SMTP',
+        messageId: sendResult?.messageId
+      };
+    } catch (smtpErr) {
+      logger.error(`❌ [SMTP Delivery Error]:`, smtpErr.message);
+    }
+  }
+
+  // 3. Fallback / Dev Sandbox Mode
+  logger.info(`ℹ️ [Email Fallback] Email dispatch logged in console for ${to} (${subject}).`);
+  return {
+    success: true,
+    provider: 'Sandbox',
+    recipient: to
+  };
 }
 
 /**
@@ -34,7 +145,7 @@ function formatPoliteRejectionReason(application, customNotes) {
   const reasonCodes = riskResult.reasonCodes || [];
 
   if (reasonCodes.length > 0) {
-    const politeFactors = reasonCodes.map(rc => {
+    const politeFactors = reasonCodes.map((rc) => {
       if (typeof rc === 'string') return rc;
       if (rc.code === 'high_revenue_volatility') return 'Monthly revenue cash-flow patterns exhibit elevated variance';
       if (rc.code === 'refund_rate_above_benchmark') return 'Customer refund/chargeback ratios currently sit above category benchmarks';
@@ -198,40 +309,17 @@ Track real-time status online at: ${statusUrl}
  * Sends decision notification email to merchant and logs audit event
  */
 export async function sendDecisionNotification({ application, decision, customNotes = '' }) {
-  const { subject, html, text, recipientEmail, businessName } = formatDecisionEmail({ application, decision, customNotes });
+  const { subject, html, text, recipientEmail } = formatDecisionEmail({ application, decision, customNotes });
   const appId = application.id || 'N/A';
 
   try {
-    let sentVia = 'Sandbox';
-
-    if (process.env.RESEND_API_KEY) {
-      const resendClient = new Resend(process.env.RESEND_API_KEY);
-      const fromAddress = process.env.RESEND_FROM || 'Verdika Security <onboarding@resend.dev>';
-      const { data, error } = await resendClient.emails.send({
-        from: fromAddress,
-        to: recipientEmail,
-        subject,
-        html,
-        text
-      });
-      if (error) {
-        logger.error('[Resend Decision Email Error]:', error);
-      } else {
-        sentVia = `Resend (ID: ${data?.id})`;
-      }
-    } else {
-      const transporter = createTransporter();
-      if (transporter) {
-        await transporter.sendMail({
-          from: process.env.SMTP_FROM || '"Verdika Decisions" <notifications@verdika.com>',
-          to: recipientEmail,
-          subject,
-          text,
-          html
-        });
-        sentVia = 'SMTP';
-      }
-    }
+    const emailResult = await sendEmail({
+      to: recipientEmail,
+      subject,
+      html,
+      text,
+      fromName: 'Verdika Risk Engine'
+    });
 
     const notifRecord = await Notification.create({
       application_id: application.id,
@@ -242,14 +330,13 @@ export async function sendDecisionNotification({ application, decision, customNo
       status: 'sent'
     });
 
-    logger.info(`[NotificationService] Sent decision notification to ${recipientEmail} for App: ${appId} [Decision: ${decision}, SentVia: ${sentVia}]`);
+    logger.info(`[NotificationService] Sent decision notification to ${recipientEmail} for App: ${appId} [Decision: ${decision}, Provider: ${emailResult.provider}]`);
 
     return {
       success: true,
-      sentVia,
+      sentVia: emailResult.provider,
       notification: notifRecord
     };
-
   } catch (err) {
     logger.error(`[NotificationService Error] Failed to send decision email to ${recipientEmail}:`, err.message);
 
@@ -272,7 +359,7 @@ export async function sendDecisionNotification({ application, decision, customNo
 }
 
 /**
- * Sends a 6-digit OTP verification email for two-factor authentication via Resend HTTPS API
+ * Sends a 6-digit OTP verification email for two-factor authentication
  */
 export async function sendOtpEmail({ recipientEmail, recipientName = 'Underwriter', otpCode, expiresMinutes = 5 }) {
   const subject = `Your Verdika Login Verification Code: ${otpCode}`;
@@ -331,63 +418,135 @@ If you did not initiate this login, please secure your account immediately.
 ==========================================
   `.trim();
 
-  console.log('\n[2FA RESEND DISPATCH START]');
-  console.log('Recipient Email:', recipientEmail);
-  console.log('OTP Code:', otpCode);
+  // Highlighted Dev Mode Console Log
+  console.log('\n======================================================');
+  console.log(`🔑 [AUTH 2FA] DEV MODE - OTP: ${otpCode} (Recipient: ${recipientEmail})`);
+  console.log('======================================================\n');
 
-  // 1. Primary Dispatch Method: Resend HTTPS API (Port 443 - Bypasses SMTP blocks)
-  if (process.env.RESEND_API_KEY) {
-    const fromAddress = process.env.RESEND_FROM || 'Verdika Security <onboarding@resend.dev>';
-    console.log('Using Resend HTTPS API. From Address:', fromAddress);
+  const result = await sendEmail({
+    to: recipientEmail,
+    subject,
+    html,
+    text,
+    fromName: 'Verdika Security'
+  });
 
-    try {
-      const resendClient = new Resend(process.env.RESEND_API_KEY);
-      const { data, error } = await resendClient.emails.send({
-        from: fromAddress,
-        to: recipientEmail,
-        subject,
-        html,
-        text
-      });
+  return { success: result.success, otpCode, provider: result.provider };
+}
 
-      if (error) {
-        console.error('❌ [Resend Error]:', JSON.stringify(error, null, 2));
-        logger.info(`[2FA Service Fallback] OTP for ${recipientEmail}: ${otpCode}`);
-        return { success: false, error, otpCode, fallback: true };
-      }
+/**
+ * Sends a welcome email to a newly created Finance Company Admin with their login credentials
+ */
+export async function sendCompanyAdminWelcomeEmail({
+  adminEmail,
+  adminName,
+  companyName,
+  password,
+  loginUrl,
+  applyUrl
+}) {
+  const subject = `Welcome to Verdika — Finance Company Admin Account Created (${companyName})`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8" /></head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; padding: 24px;">
+      <div style="max-width: 580px; margin: 0 auto; background: #1e293b; border-radius: 12px; border: 1px solid #334155; padding: 32px;">
+        <h2 style="color: #38bdf8; margin: 0 0 16px 0;">Welcome to Verdika, ${adminName}!</h2>
+        <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6;">
+          A dedicated institutional tenancy for <strong>${companyName}</strong> has been provisioned on the Verdika Risk Platform by a Platform Super Admin.
+        </p>
 
-      console.log('✅ [Resend Success]:', JSON.stringify(data, null, 2));
-      logger.info(`[2FA Service] Sent OTP email via Resend to ${recipientEmail} [Message ID: ${data?.id}]`);
-      return { success: true, data, otpCode };
-    } catch (err) {
-      console.error('❌ [Resend Exception]:', err);
-      logger.info(`[2FA Service Fallback] OTP for ${recipientEmail}: ${otpCode}`);
-      return { success: false, error: err.message, otpCode, fallback: true };
-    }
-  }
+        <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 20px; margin: 24px 0;">
+          <h4 style="color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; font-size: 12px; margin: 0 0 12px 0;">Your Administrator Credentials</h4>
+          <p style="margin: 6px 0; color: #f8fafc; font-size: 14px;"><strong>Login Email:</strong> <code style="color: #38bdf8;">${adminEmail}</code></p>
+          <p style="margin: 6px 0; color: #f8fafc; font-size: 14px;"><strong>Password:</strong> <code style="color: #38bdf8; background: rgba(56, 189, 248, 0.1); padding: 2px 6px; border-radius: 4px;">${password}</code></p>
+          <p style="margin: 6px 0; color: #f8fafc; font-size: 14px;"><strong>Public Merchant Gateway:</strong> <a href="${applyUrl}" style="color: #38bdf8;">${applyUrl}</a></p>
+        </div>
 
-  // 2. Secondary Fallback Method: SMTP (if configured)
-  const transporter = createTransporter();
-  if (transporter) {
-    console.log('Using Nodemailer SMTP fallback...');
-    try {
-      const sendResult = await transporter.sendMail({
-        from: process.env.SMTP_FROM || '"Verdika Security" <no-reply@verdika.com>',
-        to: recipientEmail,
-        subject,
-        text,
-        html
-      });
-      console.log('✅ [SMTP sendMail SUCCESS]:', sendResult);
-      return { success: true, otpCode, sendResult };
-    } catch (err) {
-      console.error('❌ [SMTP sendMail ERROR]:', err.message);
-      logger.info(`[2FA Service Fallback] OTP for ${recipientEmail}: ${otpCode}`);
-      return { success: false, otpCode, error: err.message, fallback: true };
-    }
-  }
+        <div style="text-align: center; margin: 30px 0 20px 0;">
+          <a href="${loginUrl}" style="background: #3b82f6; color: #ffffff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 600; display: inline-block;">
+            Sign In to Company Dashboard →
+          </a>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
 
-  // 3. Sandbox Terminal Mode
-  console.log('ℹ️ [2FA Sandbox Mode] No email provider configured. OTP:', otpCode);
-  return { success: true, otpCode, sandbox: true };
+  const text = `
+Welcome to Verdika, ${adminName}!
+An administrator account for ${companyName} has been created for you.
+
+Login Email: ${adminEmail}
+Password: ${password}
+Login Portal: ${loginUrl}
+Public Merchant Application Link: ${applyUrl}
+  `.trim();
+
+  const result = await sendEmail({
+    to: adminEmail,
+    subject,
+    html,
+    text,
+    fromName: 'Verdika Onboarding'
+  });
+
+  logger.info(`[Notification] Admin credentials email dispatched for ${adminEmail} (${companyName}) [Provider: ${result.provider}]`);
+  return { success: result.success, email: adminEmail, provider: result.provider };
+}
+
+/**
+ * Sends a Super Admin platform invitation email
+ */
+export async function sendSuperAdminInviteEmail({
+  recipientEmail,
+  inviteLink,
+  invitedByName,
+  expiresHours = 72
+}) {
+  const subject = `Platform Super Admin Invitation — Verdika Risk Engine`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8" /></head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; padding: 24px;">
+      <div style="max-width: 580px; margin: 0 auto; background: #1e293b; border-radius: 12px; border: 1px solid #334155; padding: 32px;">
+        <div style="display: inline-block; background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.4); color: #c084fc; font-weight: 700; font-size: 11px; padding: 3px 10px; border-radius: 999px; text-transform: uppercase; margin-bottom: 12px;">
+          Privileged Platform Access
+        </div>
+        <h2 style="color: #ffffff; margin: 0 0 16px 0;">You've Been Invited to Verdika Super Admin</h2>
+        <p style="color: #cbd5e1; font-size: 15px; line-height: 1.6;">
+          <strong>${invitedByName || 'A Platform Administrator'}</strong> has invited you to join the Verdika Platform Governance team as a <strong>Super Admin</strong>.
+        </p>
+
+        <div style="text-align: center; margin: 30px 0 20px 0;">
+          <a href="${inviteLink}" style="background: linear-gradient(135deg, #a855f7 0%, #7c3aed 100%); color: #ffffff; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: 700; display: inline-block;">
+            Accept Super Admin Invitation →
+          </a>
+        </div>
+        <p style="color: #94a3b8; font-size: 12px; text-align: center;">
+          This secure link will expire in ${expiresHours} hours.
+        </p>
+      </div>
+    </body>
+    </html>
+  `;
+
+  const text = `
+You have been invited to become a Super Admin on Verdika by ${invitedByName}.
+Accept invitation link: ${inviteLink}
+Expires in ${expiresHours} hours.
+  `.trim();
+
+  const result = await sendEmail({
+    to: recipientEmail,
+    subject,
+    html,
+    text,
+    fromName: 'Verdika Governance'
+  });
+
+  logger.info(`[Notification] Super Admin invite dispatched to ${recipientEmail} [Provider: ${result.provider}]`);
+  return { success: result.success, email: recipientEmail, inviteLink, provider: result.provider };
 }

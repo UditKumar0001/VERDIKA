@@ -17,6 +17,7 @@ import ApplicationDetail from './pages/ApplicationDetail';
 import NewApplication from './pages/NewApplication';
 import PublicApply from './pages/PublicApply';
 import CompanySelector from './pages/CompanySelector';
+import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import ApplicationStatus from './pages/ApplicationStatus';
 import AcceptInvite from './pages/AcceptInvite';
 
@@ -41,7 +42,7 @@ function App() {
               <Route
                 path="/dashboard"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute allowedRoles={['admin', 'underwriter', 'merchant']}>
                     <Dashboard />
                   </ProtectedRoute>
                 }
@@ -49,8 +50,16 @@ function App() {
               <Route
                 path="/dashboard/application/:id"
                 element={
-                  <ProtectedRoute>
+                  <ProtectedRoute allowedRoles={['admin', 'underwriter', 'merchant']}>
                     <ApplicationDetail />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/super-admin/dashboard"
+                element={
+                  <ProtectedRoute allowedRoles={['super_admin']}>
+                    <SuperAdminDashboard />
                   </ProtectedRoute>
                 }
               />

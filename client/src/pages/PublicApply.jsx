@@ -65,22 +65,26 @@ export default function PublicApply() {
   }
 
   if (error || !company) {
+    const isInactive = error?.toLowerCase().includes('no longer active') || company?.status === 'removed';
+
     return (
       <div className="auth-page-container">
         <div className="auth-card" style={{ textAlign: 'center', maxWidth: '480px', padding: '2.5rem' }}>
-          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>{isInactive ? '🚫' : '⚠️'}</div>
           <h2 style={{ color: 'var(--status-rejected)', marginBottom: '0.75rem' }}>
-            Invalid or Expired Link
+            {isInactive ? 'This application link is no longer active' : 'Invalid or Expired Link'}
           </h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: '1.5', marginBottom: '1.75rem' }}>
-            The merchant application link <code style={{ color: 'var(--accent-blue)', background: 'rgba(59, 130, 246, 0.1)', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>/apply/{companySlug}</code> does not match any active finance company on our platform.
+            {isInactive
+              ? `The merchant credit application gateway for this finance partner has been deactivated and is not accepting new submissions at this time.`
+              : `The merchant application link /apply/${companySlug} does not match any active finance company on our platform.`}
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <Link to="/" className="btn-primary" style={{ textAlign: 'center', textDecoration: 'none' }}>
-              Return to Verdika Home
+            <Link to="/apply" className="btn-primary" style={{ textAlign: 'center', textDecoration: 'none' }}>
+              Browse Active Finance Partners
             </Link>
-            <Link to="/login" style={{ color: 'var(--text-dim)', fontSize: '0.8rem', textDecoration: 'none' }}>
-              Are you a finance partner? Sign In
+            <Link to="/" style={{ color: 'var(--text-dim)', fontSize: '0.85rem', textDecoration: 'none' }}>
+              Return to Verdika Home
             </Link>
           </div>
         </div>

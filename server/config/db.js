@@ -77,6 +77,8 @@ const initSchema = async () => {
       name TEXT NOT NULL,
       slug TEXT UNIQUE NOT NULL,
       email TEXT,
+      status TEXT NOT NULL DEFAULT 'active',
+      deactivated_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -151,7 +153,19 @@ const initSchema = async () => {
 
   await db.exec(schemaSql);
 
-  // Run Column Migrations for SQLite (if tables already existed without company_id)
+  // Run Column Migrations for SQLite
+  try {
+    const compColumns = await db.all(`PRAGMA table_info(companies)`);
+    if (!compColumns.some((c) => c.name === 'status')) {
+      await db.exec(`ALTER TABLE companies ADD COLUMN status TEXT NOT NULL DEFAULT 'active'`);
+    }
+    if (!compColumns.some((c) => c.name === 'deactivated_at')) {
+      await db.exec(`ALTER TABLE companies ADD COLUMN deactivated_at DATETIME`);
+    }
+  } catch (err) {
+    logger.warn('[DB Migration] companies status/deactivated_at check:', err.message);
+  }
+
   try {
     const userColumns = await db.all(`PRAGMA table_info(users)`);
     if (!userColumns.some((c) => c.name === 'company_id')) {
@@ -176,19 +190,40 @@ const initSchema = async () => {
  */
 const seedDefaultData = async () => {
   try {
-    // 0. Seed Default Finance Company: Verdika Capital
+    // 0. Seed Platform Super Admin Account (Global Platform Owner)
+    const superAdminEmail = 'udit47656@gmail.com';
+    const superAdminPasswordPlain = '47656*ShahUdit';
+    const existingSuperAdmin = await db.get('SELECT id FROM users WHERE email = ?', [superAdminEmail]);
+    const superAdminHash = await bcrypt.hash(superAdminPasswordPlain, 10);
+
+    if (!existingSuperAdmin) {
+      const superAdminId = crypto.randomUUID();
+      await db.run(
+        `INSERT INTO users (id, company_id, name, email, password_hash, role) VALUES (?, ?, ?, ?, ?, ?)`,
+        [superAdminId, null, 'Platform Super Admin', superAdminEmail, superAdminHash, 'super_admin']
+      );
+      logger.info(`[DB Seed] Seeded platform Super Admin account (${superAdminEmail})`);
+    } else {
+      await db.run(
+        `UPDATE users SET password_hash = ?, role = 'super_admin', company_id = NULL WHERE email = ?`,
+        [superAdminHash, superAdminEmail]
+      );
+      logger.info(`[DB Seed] Updated platform Super Admin credentials (${superAdminEmail})`);
+    }
+
+    // 1. Seed Default Finance Company: Verdika Capital
     let defaultCompany = await db.get('SELECT * FROM companies WHERE slug = ?', ['verdika-capital']);
     if (!defaultCompany) {
       const companyId = crypto.randomUUID();
       await db.run(
-        `INSERT INTO companies (id, name, slug, email) VALUES (?, ?, ?, ?)`,
+        `INSERT INTO companies (id, name, slug, email, status) VALUES (?, ?, ?, ?, 'active')`,
         [companyId, 'Verdika Capital', 'verdika-capital', 'udit54638@gmail.com']
       );
       defaultCompany = { id: companyId, name: 'Verdika Capital', slug: 'verdika-capital' };
       logger.info('[DB Seed] Seeded default finance company (Verdika Capital, slug: verdika-capital)');
     }
 
-    // 1. Seed Demo Underwriter
+    // 2. Seed Demo Underwriter
     const existingUnderwriter = await db.get('SELECT id FROM users WHERE email = ?', ['underwriter@verdika.internal']);
     if (!existingUnderwriter) {
       const passwordHash = await bcrypt.hash('Verdika123!', 10);
@@ -206,7 +241,7 @@ const seedDefaultData = async () => {
     // Backfill NULL application company_ids with defaultCompany.id
     await db.run(`UPDATE applications SET company_id = ? WHERE company_id IS NULL`, [defaultCompany.id]);
 
-    // 2. Seed Admin User: udit54638@gmail.com
+    // 3. Seed Admin User: udit54638@gmail.com
     const existingAdmin = await db.get('SELECT id FROM users WHERE email = ?', ['udit54638@gmail.com']);
     if (!existingAdmin) {
       const passwordHash = await bcrypt.hash('129760@gmailUdit', 10);
@@ -224,7 +259,7 @@ const seedDefaultData = async () => {
       );
     }
 
-    // 3. Seed Demo Merchant User
+    // 4. Seed Demo Merchant User
     const existingMerchant = await db.get('SELECT id FROM users WHERE email = ?', ['merchant@verdika.internal']);
     if (!existingMerchant) {
       const passwordHash = await bcrypt.hash('Merchant123!', 10);

@@ -36,16 +36,26 @@ export default function Navbar() {
   // Route matching for active link indicators
   const isHomeActive = location.pathname === '/';
   const isApplyActive = location.pathname === '/apply';
+  const isSuperAdminActive = location.pathname.startsWith('/super-admin');
   const isAnalyticsActive = location.pathname === '/dashboard' && location.search.includes('tab=analytics');
   const isQueueActive = location.pathname === '/dashboard' && !location.search.includes('tab=analytics');
 
   // Compute initials for user profile chip
   const userInitials = (() => {
     if (!user?.name) return 'U';
+    if (user.role === 'super_admin') return 'SA';
     const parts = user.name.trim().split(/\s+/);
     if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
     return parts[0].slice(0, 2).toUpperCase();
   })();
+
+  const formatRole = (role) => {
+    if (role === 'super_admin') return 'Super Admin';
+    if (role === 'admin') return 'Admin';
+    if (role === 'underwriter') return 'Underwriter';
+    if (role === 'merchant') return 'Merchant';
+    return role || 'User';
+  };
 
   return (
     <nav className={`navbar ${isScrolled ? 'navbar-scrolled' : ''}`}>
@@ -77,7 +87,17 @@ export default function Navbar() {
             {isApplyActive && <span className="nav-active-dot"></span>}
           </Link>
 
-          {isAuthenticated && (
+          {isAuthenticated && user?.role === 'super_admin' && (
+            <Link
+              to="/super-admin/dashboard"
+              className={`nav-link ${isSuperAdminActive ? 'active' : ''}`}
+            >
+              <span>Platform Console</span>
+              {isSuperAdminActive && <span className="nav-active-dot"></span>}
+            </Link>
+          )}
+
+          {isAuthenticated && user?.role !== 'super_admin' && (
             <>
               <Link
                 to="/dashboard"
@@ -117,7 +137,9 @@ export default function Navbar() {
               </div>
               <div className="user-info">
                 <span className="user-name">{user?.name || user?.email}</span>
-                <span className="user-role">{user?.role || 'underwriter'}</span>
+                <span className="user-role" style={{ color: user?.role === 'super_admin' ? 'var(--accent-cyan)' : undefined, fontWeight: user?.role === 'super_admin' ? 700 : undefined }}>
+                  {formatRole(user?.role)}
+                </span>
               </div>
               <button
                 onClick={handleLogout}

@@ -66,7 +66,7 @@ export default function AcceptInvite() {
 
     setSubmitting(true);
     try {
-      await acceptInvite({
+      const res = await acceptInvite({
         token,
         name: name.trim(),
         password
@@ -76,7 +76,11 @@ export default function AcceptInvite() {
         await fetchCurrentUser();
       }
 
-      navigate('/dashboard');
+      if (res?.role === 'super_admin' || inviteData?.role === 'super_admin') {
+        navigate('/super-admin/dashboard');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setSubmitError(err.message || 'Failed to accept invitation.');
     } finally {
@@ -115,18 +119,23 @@ export default function AcceptInvite() {
     );
   }
 
-  const companyName = inviteData.company?.name || 'Finance Company';
-  const roleLabel = inviteData.role === 'admin' ? 'Administrator' : 'Underwriter';
+  const isSuperAdmin = inviteData.role === 'super_admin';
+  const companyName = isSuperAdmin ? 'Verdika Platform' : (inviteData.company?.name || 'Finance Company');
+  const roleLabel = isSuperAdmin ? 'Super Admin' : (inviteData.role === 'admin' ? 'Administrator' : 'Underwriter');
 
   return (
     <div className="auth-page-container">
       <div className="auth-card" style={{ maxWidth: '480px' }}>
         <div className="auth-header">
           <img src="/logo.png" alt="Verdika Logo" className="auth-logo-img" />
-          <div className="auth-badge">Team Member Onboarding</div>
-          <h2>Join {companyName}</h2>
+          <div className="auth-badge" style={isSuperAdmin ? { borderColor: '#c084fc', color: '#c084fc', background: 'rgba(168, 85, 247, 0.15)' } : undefined}>
+            {isSuperAdmin ? 'Platform Super Admin Onboarding' : 'Team Member Onboarding'}
+          </div>
+          <h2>{isSuperAdmin ? 'Join Verdika Governance' : `Join ${companyName}`}</h2>
           <p className="auth-subtitle">
-            You've been invited to join <strong>{companyName}</strong> as an authorized <strong>{roleLabel}</strong>.
+            {isSuperAdmin
+              ? `You've been invited to join the Verdika platform governance team with full Super Admin privileges.`
+              : `You've been invited to join ${companyName} as an authorized ${roleLabel}.`}
           </p>
         </div>
 
@@ -142,8 +151,8 @@ export default function AcceptInvite() {
               disabled
               style={{ opacity: 0.75, cursor: 'not-allowed', background: 'rgba(30, 41, 59, 0.5)' }}
             />
-            <span className="field-hint" style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
-              🔒 Verified by {companyName} Admin
+            <span className="field-hint" style={{ fontSize: '0.7rem', color: isSuperAdmin ? '#c084fc' : 'var(--text-dim)' }}>
+              🔒 {isSuperAdmin ? 'Authorized Super Admin Invitation' : `Verified by ${companyName} Admin`}
             </span>
           </div>
 

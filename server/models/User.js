@@ -79,4 +79,39 @@ export class User {
     );
     return rows.map((r) => User.fromRow(r));
   }
+
+  static async findSuperAdmins() {
+    const rows = await db.all(
+      `SELECT id, company_id, name, email, role, created_at FROM users WHERE role = 'super_admin' ORDER BY created_at ASC`
+    );
+    return rows.map((r) => User.fromRow(r));
+  }
+
+  static async findCompanyAdmins() {
+    const rows = await db.all(
+      `SELECT u.id, u.company_id, u.name, u.email, u.role, u.created_at,
+              c.name AS company_name, c.slug AS company_slug, c.status AS company_status
+       FROM users u
+       LEFT JOIN companies c ON u.company_id = c.id
+       WHERE u.role = 'admin'
+       ORDER BY u.created_at DESC`
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      company_id: r.company_id,
+      name: r.name,
+      email: r.email,
+      role: r.role,
+      createdAt: r.created_at,
+      company_name: r.company_name || 'Unassigned',
+      company_slug: r.company_slug || null,
+      company_status: r.company_status || 'active'
+    }));
+  }
+
+  static async deleteUser(id) {
+    if (!id) return false;
+    const result = await db.run('DELETE FROM users WHERE id = ?', [id]);
+    return result.changes > 0;
+  }
 }

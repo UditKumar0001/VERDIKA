@@ -177,3 +177,137 @@ export async function acceptInvite({ token, name, password }) {
   return data;
 }
 
+/**
+ * Super Admin: Retrieves all registered finance companies with enriched statistics
+ */
+export async function getSuperAdminCompanies() {
+  const res = await fetch(`${API_BASE_URL}/companies/admin/all`, {
+    method: 'GET',
+    credentials: 'include'
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to retrieve platform companies.');
+  }
+  return data;
+}
+
+/**
+ * Super Admin: Soft-deactivates/removes a finance company
+ */
+export async function deactivateCompany(companyId) {
+  const res = await fetch(`${API_BASE_URL}/companies/admin/${encodeURIComponent(companyId)}/deactivate`, {
+    method: 'POST',
+    credentials: 'include'
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to deactivate company.');
+  }
+  return data;
+}
+
+/**
+ * Super Admin: Reactivates a removed finance company
+ */
+export async function reactivateCompany(companyId) {
+  const res = await fetch(`${API_BASE_URL}/companies/admin/${encodeURIComponent(companyId)}/reactivate`, {
+    method: 'POST',
+    credentials: 'include'
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to reactivate company.');
+  }
+  return data;
+}
+
+/**
+ * Super Admin: Manually provisions a new Finance Company and Admin account
+ */
+export async function createFinanceCompany(payload) {
+  const res = await fetch(`${API_BASE_URL}/companies/admin/create-company`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to create finance company.');
+  }
+  return data;
+}
+
+/**
+ * Super Admin: Retrieves list of all Super Admins and pending Super Admin invites
+ */
+export async function getSuperAdmins() {
+  const res = await fetch(`${API_BASE_URL}/companies/admin/super-admins`, {
+    method: 'GET',
+    credentials: 'include'
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to load Super Admins.');
+  }
+  return data;
+}
+
+/**
+ * Super Admin: Dispatches a new Super Admin invitation (requires current admin password)
+ */
+export async function inviteSuperAdmin({ email, current_admin_password }) {
+  const res = await fetch(`${API_BASE_URL}/companies/admin/invite-super-admin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ email, current_admin_password })
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to send Super Admin invite.');
+  }
+  return data;
+}
+
+/**
+ * Super Admin: Revokes a pending Super Admin invite
+ */
+export async function revokeSuperAdminInvite(inviteId) {
+  const res = await fetch(`${API_BASE_URL}/companies/admin/super-admin-invites/${encodeURIComponent(inviteId)}`, {
+    method: 'DELETE',
+    credentials: 'include'
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to revoke Super Admin invite.');
+  }
+  return data;
+}
+
+/**
+ * Super Admin: Removes an auxiliary Super Admin user
+ */
+export async function removeSuperAdmin(userId) {
+  const res = await fetch(`${API_BASE_URL}/companies/admin/super-admins/${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+    credentials: 'include'
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to remove Super Admin account.');
+  }
+  return data;
+}
+
+
+
