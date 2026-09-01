@@ -12,6 +12,8 @@ const SAMPLE_PRESETS = {
     gstin: '27AAACG1234F1Z5',
     registration_date: '2022-03-15',
     business_age_months: 48,
+    loan_amount: 500000,
+    loan_tenure_months: 12,
     bank_details: {
       account_holder: 'Sunrise Digital Solutions Pvt Ltd',
       account_number: '50200084729103',
@@ -70,6 +72,8 @@ const SAMPLE_PRESETS = {
     gstin: '27AABCM5678H1Z2',
     registration_date: '2026-06-01',
     business_age_months: 2,
+    loan_amount: 3000000,
+    loan_tenure_months: 24,
     bank_details: {
       account_holder: 'Metro Wholesale Apparel Traders',
       account_number: '91820491823901',
@@ -156,6 +160,8 @@ const SAMPLE_PRESETS = {
     gstin: '27AABCK9012K1Z8',
     registration_date: '2024-01-20',
     business_age_months: 28,
+    loan_amount: 1500000,
+    loan_tenure_months: 18,
     bank_details: {
       account_holder: 'Kalyan Supermart & Provision',
       account_number: '00040501839210',
@@ -226,19 +232,32 @@ const maskAccountNumber = (accNo) => {
   return 'X'.repeat(maskedLength) + clean.slice(-4);
 };
 
+export const calculateEmi = (principal, tenureMonths, annualRatePct = 14) => {
+  const P = Number(principal) || 0;
+  const n = Number(tenureMonths) || 12;
+  if (P <= 0 || n <= 0) return { emi: 0, totalPayable: 0, totalInterest: 0 };
+  const r = (annualRatePct / 12) / 100;
+  const emi = Math.round((P * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1));
+  const totalPayable = emi * n;
+  const totalInterest = Math.max(0, totalPayable - P);
+  return { emi, totalPayable, totalInterest };
+};
+
 export default function NewApplication({ publicCompany = null }) {
   const navigate = useNavigate();
 
   // Wizard Step: 1 = Business Info, 2 = Bank Details, 3 = Document Uploads, 4 = Review & Submit
   const [currentStep, setCurrentStep] = useState(1);
 
-  // Step 1: Business Profile
+  // Step 1: Business Profile & Loan Request
   const [formData, setFormData] = useState({
     business_name: '',
     business_category: 'electronics',
     gstin: '',
     registration_date: '',
-    business_age_months: ''
+    business_age_months: '',
+    loan_amount: '500000',
+    loan_tenure_months: '12'
   });
 
   // Step 2: Bank Details
@@ -543,7 +562,9 @@ export default function NewApplication({ publicCompany = null }) {
       business_category: preset.business_category,
       gstin: preset.gstin,
       registration_date: preset.registration_date,
-      business_age_months: preset.business_age_months
+      business_age_months: preset.business_age_months,
+      loan_amount: String(preset.loan_amount || 500000),
+      loan_tenure_months: String(preset.loan_tenure_months || 12)
     });
 
     if (preset.bank_details) {
@@ -665,6 +686,8 @@ export default function NewApplication({ publicCompany = null }) {
         gstin: formData.gstin || '27ABCDE1234F1Z5',
         registration_date: formData.registration_date || '2024-01-01',
         business_age_months: Number(formData.business_age_months) || 24,
+        loan_amount: Number(formData.loan_amount) || 500000,
+        loan_tenure_months: Number(formData.loan_tenure_months) || 12,
         transaction_history: historyToUse,
         bank_details: {
           account_holder: bankData.account_holder,
@@ -1057,7 +1080,91 @@ export default function NewApplication({ publicCompany = null }) {
                   onChange={handleInputChange}
                 />
               </div>
+
+              {/* Loan Facility Request Fields */}
+              <div className="form-group">
+                <label htmlFor="loan_amount">Loan Amount Required (₹) *</label>
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontWeight: '700' }}>₹</span>
+                  <input
+                    id="loan_amount"
+                    name="loan_amount"
+                    type="number"
+                    min="10000"
+                    max="100000000"
+                    step="10000"
+                    required
+                    placeholder="e.g. 500000"
+                    style={{ paddingLeft: '2.1rem' }}
+                    value={formData.loan_amount}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="loan_tenure_months">Preferred Tenure *</label>
+                <select
+                  id="loan_tenure_months"
+                  name="loan_tenure_months"
+                  value={formData.loan_tenure_months}
+                  onChange={handleInputChange}
+                  className="auth-select"
+                >
+                  <option value="6">6 Months (Half Year)</option>
+                  <option value="12">12 Months (1 Year)</option>
+                  <option value="18">18 Months (1.5 Years)</option>
+                  <option value="24">24 Months (2 Years)</option>
+                  <option value="36">36 Months (3 Years)</option>
+                </select>
+              </div>
             </div>
+
+            {/* Live EMI Calculator Widget */}
+            {(() => {
+              const emiCalc = calculateEmi(formData.loan_amount, formData.loan_tenure_months, 14);
+              return (
+                <div className="emi-calculator-card">
+                  <div className="emi-calc-header">
+                    <h3 className="emi-calc-title">
+                      <span>🧮</span> Live EMI & Repayment Estimator
+                    </h3>
+                    <span className="emi-rate-badge">Interest: 14% p.a.</span>
+                  </div>
+
+                  <div className="emi-metrics-row">
+                    <div className="emi-metric-box primary-emi">
+                      <span className="emi-metric-label">Estimated Monthly EMI</span>
+                      <span className="emi-metric-val text-emerald">
+                        ₹{emiCalc.emi.toLocaleString('en-IN')} <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: 'var(--text-dim)' }}>/ month</span>
+                      </span>
+                      <span className="emi-metric-sub">{formData.loan_tenure_months || 12} monthly installments</span>
+                    </div>
+
+                    <div className="emi-metric-box">
+                      <span className="emi-metric-label">Total Repayment Amount</span>
+                      <span className="emi-metric-val">
+                        ₹{emiCalc.totalPayable.toLocaleString('en-IN')}
+                      </span>
+                      <span className="emi-metric-sub">Principal + Total Interest</span>
+                    </div>
+
+                    <div className="emi-metric-box">
+                      <span className="emi-metric-label">Total Estimated Interest</span>
+                      <span className="emi-metric-val" style={{ color: 'var(--accent-cyan)' }}>
+                        ₹{emiCalc.totalInterest.toLocaleString('en-IN')}
+                      </span>
+                      <span className="emi-metric-sub">@ 14% reducing per annum</span>
+                    </div>
+                  </div>
+
+                  <p className="emi-disclaimer">
+                    <span>ℹ️</span>
+                    <span>Estimated at 14% p.a. — actual rate and terms may vary based on final underwriter credit approval.</span>
+                  </p>
+                </div>
+              );
+            })()}
 
             {/* Transaction Data Attachment Status */}
             <div className="tx-status-box" style={{ marginTop: '1.25rem' }}>
@@ -1620,11 +1727,11 @@ export default function NewApplication({ publicCompany = null }) {
               </p>
             </div>
 
-            {/* Summary Section 1: Business Profile */}
+            {/* Summary Section 1: Business Profile & Loan Request */}
             <div className="review-section-card">
               <div className="review-section-header">
                 <div className="review-section-title">
-                  <span>🏢</span> Business Information
+                  <span>🏢</span> Business Information & Credit Line Request
                 </div>
                 <button type="button" className="btn-review-edit" onClick={() => setCurrentStep(1)}>
                   Edit
@@ -1647,6 +1754,29 @@ export default function NewApplication({ publicCompany = null }) {
                   <span className="review-item-label">Operating Age</span>
                   <span className="review-item-value">{formData.business_age_months ? `${formData.business_age_months} Months` : '24 Months'}</span>
                 </div>
+                <div className="review-item">
+                  <span className="review-item-label">Requested Loan Amount</span>
+                  <span className="review-item-value font-bold text-emerald" style={{ fontSize: '1rem' }}>
+                    ₹{Number(formData.loan_amount || 500000).toLocaleString('en-IN')}
+                  </span>
+                </div>
+                <div className="review-item">
+                  <span className="review-item-label">Preferred Tenure</span>
+                  <span className="review-item-value font-semibold">
+                    {formData.loan_tenure_months || 12} Months
+                  </span>
+                </div>
+                {(() => {
+                  const emi = calculateEmi(formData.loan_amount, formData.loan_tenure_months, 14);
+                  return (
+                    <div className="review-item" style={{ gridColumn: 'span 2' }}>
+                      <span className="review-item-label">Estimated Monthly EMI (@ 14% p.a.)</span>
+                      <span className="review-item-value font-bold text-cyan">
+                        ₹{emi.emi.toLocaleString('en-IN')} / mo (Total Repayable: ₹{emi.totalPayable.toLocaleString('en-IN')})
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 

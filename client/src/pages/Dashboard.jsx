@@ -1,19 +1,55 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { fetchMyApplications, fetchApplications } from '../api/applicationApi';
 import TeamManagement from '../components/TeamManagement';
 import CompanyAnalytics from '../components/CompanyAnalytics';
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error('Dashboard Error Caught:', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '2rem', background: '#1e1e2e', color: '#ff5555', borderRadius: '8px', margin: '2rem' }}>
+          <h2>Dashboard Render Error</h2>
+          <pre style={{ whiteSpace: 'pre-wrap', color: '#fff' }}>
+            {this.state.error?.toString()}
+          </pre>
+          <button
+            onClick={() => window.location.reload()}
+            style={{ marginTop: '1rem', padding: '0.5rem 1rem', background: '#6366f1', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function Dashboard() {
   const { user, company } = useAuth();
   const isMerchant = !user?.role || user.role === 'merchant';
 
-  if (!isMerchant) {
-    return <ReviewerDashboard user={user} company={company} />;
-  }
-
-  return <MerchantDashboard user={user} />;
+  return (
+    <ErrorBoundary>
+      {!isMerchant ? (
+        <ReviewerDashboard user={user} company={company} />
+      ) : (
+        <MerchantDashboard user={user} />
+      )}
+    </ErrorBoundary>
+  );
 }
 
 /**
@@ -224,12 +260,6 @@ function ReviewerDashboard({ user, company }) {
     }
   };
 
-  // Counts for top metrics bar
-  const totalCount = applications.length;
-  const pendingCount = applications.filter(a => (a.status || '').toLowerCase() === 'pending_review').length;
-  const adversarialCount = applications.filter(a => a.adversarial_result?.adversarialFlag === true).length;
-  const closedCount = applications.filter(a => (a.status || '').toLowerCase() === 'closed').length;
-
   return (
     <div className="dashboard-container">
       {/* Top Header */}
@@ -358,7 +388,7 @@ function ReviewerDashboard({ user, company }) {
 
       {activeTab === 'analytics' ? (
         <CompanyAnalytics
-          applications={allApplications.length > 0 ? allApplications : applications}
+          applications={applications}
           company={company}
           loading={loading}
         />
@@ -549,7 +579,14 @@ function ReviewerDashboard({ user, company }) {
                           <td>
                             <div className="merchant-name-cell">
                               <span className="font-semibold">{app.merchant_data?.business_name || 'Unknown Merchant'}</span>
-                              <span className="cat-tag">{app.merchant_data?.business_category || 'General'}</span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                <span className="cat-tag">{app.merchant_data?.business_category || 'General'}</span>
+                                {app.merchant_data?.loan_amount && (
+                                  <span className="badge" style={{ fontSize: '0.68rem', padding: '0.12rem 0.45rem', background: 'rgba(16, 185, 129, 0.12)', color: '#10b981', borderColor: 'rgba(16, 185, 129, 0.25)', fontWeight: 700 }}>
+                                    ₹{Number(app.merchant_data.loan_amount).toLocaleString('en-IN')}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </td>
                           <td>

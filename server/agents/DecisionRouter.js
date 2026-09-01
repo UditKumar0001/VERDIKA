@@ -41,6 +41,14 @@ export class DecisionRouter extends BaseAgent {
       return response;
     }
 
+    // 3. If requested loan amount is unusually high (> 3x average monthly revenue), route to human
+    const enriched = input.enriched || {};
+    if (enriched.loanToRevenueRatio && enriched.loanToRevenueRatio > 3.0) {
+      response.decision = 'route_to_human';
+      response.routingReason = `Requested loan amount is ${enriched.loanToRevenueRatio}x monthly revenue (threshold 3.0x) — requires underwriter scrutiny`;
+      return response;
+    }
+
     const confidence = risk && typeof risk.confidence === 'number' ? risk.confidence : 0;
     const riskScore = risk && typeof risk.riskScore === 'number' ? risk.riskScore : 0;
 

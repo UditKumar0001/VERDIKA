@@ -14,8 +14,8 @@ export default function RiskExplainabilityChart({ application }) {
     return null;
   }
 
-  // Max absolute weight for percentage scaling across bars (max 40)
-  const maxWeight = Math.max(35, ...factors.map(f => f.weightAbs));
+  // Maximum absolute impact value among all factors (used for 100% relative scaling)
+  const maxAbsImpact = Math.max(...factors.map(f => Math.abs(f.impact || f.weightAbs || 0)), 1);
 
   const positiveCount = factors.filter(f => f.type === 'positive').length;
   const negativeCount = factors.filter(f => f.type === 'negative').length;
@@ -48,8 +48,13 @@ export default function RiskExplainabilityChart({ application }) {
       <div className="explainability-bars-container">
         {factors.map((factor) => {
           const isPositive = factor.type === 'positive';
-          const widthPercent = Math.min(100, Math.max(12, (factor.weightAbs / maxWeight) * 100));
+          const absVal = Math.abs(factor.impact || factor.weightAbs || 0);
+          
+          // Calculate proportional bar width based on max factor with minimum 12% width
+          const widthPercent = Math.max(12, Math.min(100, Math.round((absVal / maxAbsImpact) * 100)));
           const isHovered = hoveredFactor === factor.id;
+
+          const impactLabel = isPositive ? `${factor.impact}%` : `+${factor.impact}%`;
 
           return (
             <div
@@ -62,28 +67,30 @@ export default function RiskExplainabilityChart({ application }) {
               <div className="bar-row-label-col">
                 <span className="factor-icon">{factor.icon}</span>
                 <div className="factor-name-wrapper">
-                  <span className="factor-name">{factor.name}</span>
+                  <div className="factor-name-row">
+                    <span className="factor-name">{factor.name}</span>
+                    <span className={`factor-nature-pill ${isPositive ? 'nature-protective' : 'nature-risk'}`}>
+                      {isPositive ? 'Protective' : 'Risk Trigger'}
+                    </span>
+                  </div>
                   <span className="factor-desc">{factor.description}</span>
                 </div>
               </div>
 
               {/* Right Chart Bar Track Column */}
               <div className="bar-row-track-col">
-                <div className="bar-track">
+                <div className={`bar-track ${isPositive ? 'track-positive' : 'track-negative'}`}>
                   <div
                     className={`bar-fill ${isPositive ? 'bar-fill-positive' : 'bar-fill-negative'}`}
                     style={{ width: `${widthPercent}%` }}
-                  >
-                    <span className="bar-fill-inner-label">
-                      {isPositive ? `${factor.impact}%` : `+${factor.impact}%`}
-                    </span>
-                  </div>
+                  />
                 </div>
 
-                {/* Clear Contribution Metric Tag */}
-                <span className={`factor-impact-tag ${isPositive ? 'tag-positive' : 'tag-negative'}`}>
-                  {factor.name}: {isPositive ? `${factor.impact}%` : `+${factor.impact}%`}
-                </span>
+                {/* Contribution Metric Badge outside the bar to prevent text cutoff */}
+                <div className={`factor-impact-tag ${isPositive ? 'tag-positive' : 'tag-negative'}`}>
+                  <span className="impact-symbol">{isPositive ? '▼' : '▲'}</span>
+                  <span className="impact-num">{impactLabel}</span>
+                </div>
               </div>
             </div>
           );

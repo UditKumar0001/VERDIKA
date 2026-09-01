@@ -318,6 +318,28 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
       { content: (merchantData.business_category || 'General').toUpperCase(), styles: { textColor: [15, 23, 42] } },
       { content: 'Operating Age:', styles: { fontStyle: 'bold', textColor: [100, 116, 139] } },
       { content: `${merchantData.business_age_months || 24} Months`, styles: { textColor: [15, 23, 42] } }
+    ],
+    [
+      { content: 'Requested Loan Facility:', styles: { fontStyle: 'bold', textColor: [100, 116, 139] } },
+      {
+        content: (() => {
+          const lAmt = Number(merchantData.loan_amount || application.loan_amount || 500000);
+          const lTen = Number(merchantData.loan_tenure_months || application.loan_tenure_months || 12);
+          return `INR ${lAmt.toLocaleString('en-IN')} (${lTen} Mos)`;
+        })(),
+        styles: { fontStyle: 'bold', textColor: [5, 150, 105] }
+      },
+      { content: 'Est. Monthly EMI (@14%):', styles: { fontStyle: 'bold', textColor: [100, 116, 139] } },
+      {
+        content: (() => {
+          const lAmt = Number(merchantData.loan_amount || application.loan_amount || 500000);
+          const lTen = Number(merchantData.loan_tenure_months || application.loan_tenure_months || 12);
+          const r = (14 / 12) / 100;
+          const emi = Math.round((lAmt * r * Math.pow(1 + r, lTen)) / (Math.pow(1 + r, lTen) - 1));
+          return `INR ${emi.toLocaleString('en-IN')}/mo`;
+        })(),
+        styles: { fontStyle: 'bold', textColor: [37, 99, 235] }
+      }
     ]
   ];
 
@@ -529,13 +551,14 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
     doc.setLineWidth(0.3);
     doc.line(marginX + 4, y + 7.5, pageWidth - marginX - 4, y + 7.5);
 
-    const maxAbsWeight = Math.max(35, ...explainFactors.map(f => f.weightAbs));
-    const trackWidth = 50;
-    const trackX = marginX + 65;
+    const maxAbsWeight = Math.max(...explainFactors.map(f => Math.abs(f.impact || f.weightAbs || 0)), 1);
+    const trackWidth = 48;
+    const trackX = marginX + 66;
 
     explainFactors.forEach((factor, idx) => {
       const rowY = y + 9.5 + (idx * chartRowHeight);
       const isPositive = factor.type === 'positive';
+      const absVal = Math.abs(factor.impact || factor.weightAbs || 0);
 
       // Left Factor Label
       doc.setFont('helvetica', 'bold');
@@ -551,11 +574,11 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
       doc.text(descText, marginX + 6, rowY + 5.8);
 
       // Horizontal Bar Track
-      doc.setFillColor(226, 232, 240);
+      doc.setFillColor(241, 245, 249);
       doc.roundedRect(trackX, rowY + 1.2, trackWidth, 3.8, 0.8, 0.8, 'F');
 
-      // Filled Bar
-      const barFillW = Math.max(6, (factor.weightAbs / maxAbsWeight) * trackWidth);
+      // Filled Bar with Proportional Scaling
+      const barFillW = Math.max(5, (absVal / maxAbsWeight) * trackWidth);
       if (isPositive) {
         doc.setFillColor(16, 185, 129); // Emerald
       } else {

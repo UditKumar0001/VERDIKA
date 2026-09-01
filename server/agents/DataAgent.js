@@ -53,6 +53,13 @@ export class DataAgent extends BaseAgent {
     const netbank = sorted.map(r => r.netbanking_pct);
     const paymentMixStability = variance(upi) + variance(card) + variance(netbank);
 
+    // Loan & Credit Line parameters
+    const loanAmount = Number(input.loan_amount || input.loanAmount || 0);
+    const loanTenureMonths = Number(input.loan_tenure_months || input.loanTenureMonths || 12);
+    const avgWeeklyRevenue = mean(revenues);
+    const avgMonthlyRevenue = avgWeeklyRevenue * 4.33;
+    const loanToRevenueRatio = avgMonthlyRevenue > 0 ? Number((loanAmount / avgMonthlyRevenue).toFixed(2)) : 0;
+
     return {
       agent: this.name,
       status: 'completed',
@@ -66,6 +73,10 @@ export class DataAgent extends BaseAgent {
       paymentMixStability,
       businessAgeMonths: business_age_months,
       category: business_category,
+      loanAmount,
+      loanTenureMonths,
+      avgMonthlyRevenue: Math.round(avgMonthlyRevenue),
+      loanToRevenueRatio
     };
   }
 }

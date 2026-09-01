@@ -108,6 +108,19 @@ export class RiskAgent extends BaseAgent {
       });
     }
 
+    // 8. Loan Amount to Monthly Revenue Capacity Ratio (weight 0.20)
+    const { loanAmount, avgMonthlyRevenue, loanToRevenueRatio } = input;
+    if (loanAmount > 0 && avgMonthlyRevenue > 0 && loanToRevenueRatio > 3.0) {
+      const excessRatio = Math.min(6, loanToRevenueRatio) - 3.0; // scale from 3x to 6x
+      const norm = Math.min(1, excessRatio / 3.0);
+      const contrib = norm * 0.20;
+      contributions.push({
+        code: 'loan_amount_exceeds_revenue_capacity',
+        description: `Requested loan amount (₹${loanAmount.toLocaleString('en-IN')}) is ${loanToRevenueRatio.toFixed(1)}x average monthly revenue (₹${Math.round(avgMonthlyRevenue).toLocaleString('en-IN')}, policy threshold 3.0x)`,
+        weight: Number(contrib.toFixed(3)),
+      });
+    }
+
     // Sum weighted contributions (max 1)
     const riskScore = Number(contributions.reduce((sum, r) => sum + r.weight, 0).toFixed(3));
 

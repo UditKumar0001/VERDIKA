@@ -130,6 +130,19 @@ export default function ApplicationDetail() {
   const isPending = (application.status || '').toLowerCase() === 'pending_review';
   const isClosed = (application.status || '').toLowerCase() === 'closed';
 
+  const loanAmount = Number(merchantData.loan_amount || application.loan_amount || 500000);
+  const loanTenure = Number(merchantData.loan_tenure_months || application.loan_tenure_months || 12);
+  const emiData = (() => {
+    const P = loanAmount;
+    const n = loanTenure;
+    if (P <= 0 || n <= 0) return { emi: 0, totalPayable: 0, totalInterest: 0 };
+    const r = (14 / 12) / 100;
+    const emi = Math.round((P * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1));
+    const totalPayable = emi * n;
+    const totalInterest = Math.max(0, totalPayable - P);
+    return { emi, totalPayable, totalInterest };
+  })();
+
   return (
     <div className="dashboard-container">
       {/* Top Header */}
@@ -175,6 +188,41 @@ export default function ApplicationDetail() {
       <div className="detail-grid">
         {/* Left Column: Risk Engine & Adversarial Assessment */}
         <div className="detail-main-col">
+          {/* Requested Loan Facility & Repayment Structure Card */}
+          <div className="dashboard-card loan-summary-card" style={{ marginBottom: '1.25rem' }}>
+            <div className="card-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.85rem' }}>
+              <h2 className="card-title" style={{ margin: 0 }}>💳 Requested Loan Facility & Terms</h2>
+              <span className="emi-rate-badge">Interest Benchmark: 14% p.a.</span>
+            </div>
+
+            <div className="review-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+              <div className="review-item">
+                <span className="review-item-label">Loan Facility Required</span>
+                <span className="review-item-value font-bold text-emerald" style={{ fontSize: '1.2rem' }}>
+                  ₹{loanAmount.toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div className="review-item">
+                <span className="review-item-label">Preferred Tenure</span>
+                <span className="review-item-value font-bold" style={{ fontSize: '1.1rem' }}>
+                  {loanTenure} Months
+                </span>
+              </div>
+              <div className="review-item">
+                <span className="review-item-label">Estimated Monthly EMI</span>
+                <span className="review-item-value font-bold text-cyan" style={{ fontSize: '1.2rem' }}>
+                  ₹{emiData.emi.toLocaleString('en-IN')} <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: 'var(--text-dim)' }}>/ mo</span>
+                </span>
+              </div>
+              <div className="review-item">
+                <span className="review-item-label">Total Est. Repayment</span>
+                <span className="review-item-value font-bold">
+                  ₹{emiData.totalPayable.toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* Risk Summary Card */}
           <div className="dashboard-card">
             <div className="card-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
