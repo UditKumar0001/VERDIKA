@@ -3,7 +3,8 @@
  * Wraps fetch calls to company endpoints using httpOnly cookies (credentials: 'include').
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const RAW_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = RAW_API_URL.endsWith('/api') ? RAW_API_URL : `${RAW_API_URL.replace(/\/$/, '')}/api`;
 
 /**
  * Public listing of all active registered finance companies

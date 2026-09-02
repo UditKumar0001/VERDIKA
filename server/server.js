@@ -19,16 +19,23 @@ const app = express();
 app.use(generalLimiter);
 app.use(
   cors({
-      origin: (origin, callback) => {
-        // Allow requests from any localhost port (e.g., http://localhost:5173) and from undefined (e.g., server-to-server)
-        if (!origin || /^http:\/\/localhost:\d+$/.test(origin)) {
-          callback(null, true);
-        } else {
-          callback(new Error('Not allowed by CORS'));
-        }
-      },
-      credentials: true
-    })
+    origin: (origin, callback) => {
+      // Allow localhost, Vercel deployments, Render frontends, custom CLIENT_ORIGIN, or any origin temporarily
+      if (
+        !origin ||
+        /^http:\/\/localhost:\d+$/.test(origin) ||
+        /^https:\/\/.*\.vercel\.app$/.test(origin) ||
+        /^https:\/\/.*\.onrender\.com$/.test(origin) ||
+        origin === config.clientOrigin ||
+        true // Temporarily open for initial deployment (lock down to specific Vercel domain once deployed)
+      ) {
+        callback(null, origin || true);
+      } else {
+        callback(null, true);
+      }
+    },
+    credentials: true
+  })
 );
 app.use(cookieParser());
 app.use(express.json());
