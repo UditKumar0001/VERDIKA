@@ -1,4 +1,5 @@
 import sqlite3 from 'sqlite3';
+import pg from 'pg';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -7,6 +8,7 @@ import crypto from 'crypto';
 import { config } from './env.js';
 import { logger } from '../utils/logger.js';
 
+const { Pool } = pg;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -21,12 +23,29 @@ const dbPath =
     : path.resolve(config.sqlitePath);
 
 let dbInstance = null;
+let pgPool = null;
+export let isPostgres = false;
 
 /**
- * Async Promisified Database Interface
+ * Converts `?` parameter placeholders to `$1, $2, ...` for PostgreSQL queries
+ */
+function toPgQuery(sql, params = []) {
+  let paramIdx = 1;
+  const pgSql = sql.replace(/\?/g, () => `$${paramIdx++}`);
+  return { text: pgSql, values: params };
+}
+
+/**
+ * Async Promisified Database Interface (Seamlessly supports both PostgreSQL & SQLite)
  */
 export const db = {
-  run: (sql, params = []) => {
+  run: async (sql, params = []) => {
+    if (isPostgres && pgPool) {
+      const { text, values } = toPgQuery(sql, params);
+      const res = await pgPool.query(text, values);
+      return { lastID: null, changes: res.rowCount, rowCount: res.rowCount };
+    }
+
     return new Promise((resolve, reject) => {
       if (!dbInstance) return reject(new Error('Database not initialized. Call connectDB() first.'));
       dbInstance.run(sql, params, function (err) {
@@ -36,17 +55,29 @@ export const db = {
     });
   },
 
-  get: (sql, params = []) => {
+  get: async (sql, params = []) => {
+    if (isPostgres && pgPool) {
+      const { text, values } = toPgQuery(sql, params);
+      const res = await pgPool.query(text, values);
+      return res.rows[0] || null;
+    }
+
     return new Promise((resolve, reject) => {
       if (!dbInstance) return reject(new Error('Database not initialized. Call connectDB() first.'));
       dbInstance.get(sql, params, (err, row) => {
         if (err) return reject(err);
-        resolve(row);
+        resolve(row || null);
       });
     });
   },
 
-  all: (sql, params = []) => {
+  all: async (sql, params = []) => {
+    if (isPostgres && pgPool) {
+      const { text, values } = toPgQuery(sql, params);
+      const res = await pgPool.query(text, values);
+      return res.rows || [];
+    }
+
     return new Promise((resolve, reject) => {
       if (!dbInstance) return reject(new Error('Database not initialized. Call connectDB() first.'));
       dbInstance.all(sql, params, (err, rows) => {
@@ -56,7 +87,12 @@ export const db = {
     });
   },
 
-  exec: (sql) => {
+  exec: async (sql) => {
+    if (isPostgres && pgPool) {
+      await pgPool.query(sql);
+      return;
+    }
+
     return new Promise((resolve, reject) => {
       if (!dbInstance) return reject(new Error('Database not initialized. Call connectDB() first.'));
       dbInstance.exec(sql, (err) => {
@@ -79,8 +115,8 @@ const initSchema = async () => {
       email TEXT,
       status TEXT NOT NULL DEFAULT 'active',
       default_interest_rate REAL NOT NULL DEFAULT 14.0,
-      deactivated_at DATETIME,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      deactivated_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS users (
@@ -90,7 +126,7 @@ const initSchema = async () => {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL DEFAULT 'underwriter',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS applications (
@@ -108,8 +144,8 @@ const initSchema = async () => {
       status TEXT NOT NULL DEFAULT 'pending_review',
       reviewer_id TEXT,
       reviewer_decision TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS audit_logs (
@@ -122,7 +158,7 @@ const initSchema = async () => {
       confidence_score REAL DEFAULT 0,
       execution_time_ms REAL DEFAULT 0,
       summary TEXT DEFAULT '',
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS notifications (
@@ -135,8 +171,8 @@ const initSchema = async () => {
       status TEXT NOT NULL DEFAULT 'sent',
       content_html TEXT,
       error TEXT,
-      sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS company_invites (
@@ -147,8 +183,8 @@ const initSchema = async () => {
       token TEXT UNIQUE NOT NULL,
       invited_by TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'pending',
-      expires_at DATETIME NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      expires_at TIMESTAMP NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS otps (
@@ -156,45 +192,47 @@ const initSchema = async () => {
       user_id TEXT NOT NULL,
       email TEXT NOT NULL,
       otp_code TEXT NOT NULL,
-      expires_at INTEGER NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      expires_at BIGINT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `;
 
   await db.exec(schemaSql);
 
-  // Run Column Migrations for SQLite
-  try {
-    const compColumns = await db.all(`PRAGMA table_info(companies)`);
-    if (!compColumns.some((c) => c.name === 'status')) {
-      await db.exec(`ALTER TABLE companies ADD COLUMN status TEXT NOT NULL DEFAULT 'active'`);
+  // SQLite-specific PRAGMA migrations
+  if (!isPostgres) {
+    try {
+      const compColumns = await db.all(`PRAGMA table_info(companies)`);
+      if (!compColumns.some((c) => c.name === 'status')) {
+        await db.exec(`ALTER TABLE companies ADD COLUMN status TEXT NOT NULL DEFAULT 'active'`);
+      }
+      if (!compColumns.some((c) => c.name === 'deactivated_at')) {
+        await db.exec(`ALTER TABLE companies ADD COLUMN deactivated_at TIMESTAMP`);
+      }
+      if (!compColumns.some((c) => c.name === 'default_interest_rate')) {
+        await db.exec(`ALTER TABLE companies ADD COLUMN default_interest_rate REAL NOT NULL DEFAULT 14.0`);
+      }
+    } catch (err) {
+      logger.warn('[DB Migration] SQLite companies column check:', err.message);
     }
-    if (!compColumns.some((c) => c.name === 'deactivated_at')) {
-      await db.exec(`ALTER TABLE companies ADD COLUMN deactivated_at DATETIME`);
-    }
-    if (!compColumns.some((c) => c.name === 'default_interest_rate')) {
-      await db.exec(`ALTER TABLE companies ADD COLUMN default_interest_rate REAL NOT NULL DEFAULT 14.0`);
-    }
-  } catch (err) {
-    logger.warn('[DB Migration] companies status/deactivated_at/default_interest_rate check:', err.message);
-  }
 
-  try {
-    const userColumns = await db.all(`PRAGMA table_info(users)`);
-    if (!userColumns.some((c) => c.name === 'company_id')) {
-      await db.exec(`ALTER TABLE users ADD COLUMN company_id TEXT`);
+    try {
+      const userColumns = await db.all(`PRAGMA table_info(users)`);
+      if (!userColumns.some((c) => c.name === 'company_id')) {
+        await db.exec(`ALTER TABLE users ADD COLUMN company_id TEXT`);
+      }
+    } catch (err) {
+      logger.warn('[DB Migration] SQLite users.company_id check:', err.message);
     }
-  } catch (err) {
-    logger.warn('[DB Migration] users.company_id check:', err.message);
-  }
 
-  try {
-    const appColumns = await db.all(`PRAGMA table_info(applications)`);
-    if (!appColumns.some((c) => c.name === 'company_id')) {
-      await db.exec(`ALTER TABLE applications ADD COLUMN company_id TEXT`);
+    try {
+      const appColumns = await db.all(`PRAGMA table_info(applications)`);
+      if (!appColumns.some((c) => c.name === 'company_id')) {
+        await db.exec(`ALTER TABLE applications ADD COLUMN company_id TEXT`);
+      }
+    } catch (err) {
+      logger.warn('[DB Migration] SQLite applications.company_id check:', err.message);
     }
-  } catch (err) {
-    logger.warn('[DB Migration] applications.company_id check:', err.message);
   }
 };
 
@@ -283,18 +321,42 @@ const seedDefaultData = async () => {
       );
       logger.info('[DB Seed] Seeded default merchant account (merchant@verdika.internal)');
     }
-
-    // 3. Seed Sample Applications if empty
-    // Sample application seeding removed – schema now matches current spec.
   } catch (err) {
     logger.error('[DB Seed] Error during data seeding:', err);
   }
 };
 
 /**
- * Connect and initialize SQLite database
+ * Connect and initialize database (Managed PostgreSQL or fallback SQLite)
  */
 export const connectDB = async () => {
+  // 1. Check for Managed PostgreSQL connection string
+  if (config.databaseUrl && (config.databaseUrl.startsWith('postgres://') || config.databaseUrl.startsWith('postgresql://'))) {
+    try {
+      const maskedUrl = config.databaseUrl.replace(/:[^:@]+@/, ':****@');
+      logger.info(`[DB] Attempting connection to Managed PostgreSQL at ${maskedUrl}...`);
+
+      pgPool = new Pool({
+        connectionString: config.databaseUrl,
+        ssl: config.databaseUrl.includes('localhost') ? false : { rejectUnauthorized: false }
+      });
+
+      // Ping PostgreSQL
+      await pgPool.query('SELECT NOW()');
+      isPostgres = true;
+      logger.info(`[DB] ✅ Managed PostgreSQL connected successfully (Persistent Cloud Database)`);
+
+      await initSchema();
+      await seedDefaultData();
+      return pgPool;
+    } catch (pgErr) {
+      logger.error('[DB] ❌ PostgreSQL connection failed. Falling back to local SQLite:', pgErr.message);
+      isPostgres = false;
+      pgPool = null;
+    }
+  }
+
+  // 2. Fallback to Local SQLite
   const dir = path.dirname(dbPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
