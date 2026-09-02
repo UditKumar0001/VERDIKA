@@ -42,5 +42,8 @@ export const config = {
   jwtSecret: rawJwtSecret,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   databaseUrl: process.env.DATABASE_URL?.trim() || null,
-  sqlitePath: process.env.SQLITE_PATH?.trim() || './data/verdika.sqlite'
+  sqlitePath: process.env.SQLITE_PATH?.trim() || './data/verdika.sqlite',
+  brevoApiKey: process.env.BREVO_API_KEY?.trim() || null,
+  brevoFromEmail: process.env.BREVO_FROM_EMAIL?.trim() || 'udit129760@gmail.com',
+  brevoFromName: process.env.BREVO_FROM_NAME?.trim() || 'Verdika Security'
 };

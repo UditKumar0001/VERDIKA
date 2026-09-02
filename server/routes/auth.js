@@ -378,12 +378,16 @@ router.post('/login', authLimiter, async (req, res) => {
     );
 
     // Dispatch OTP via Email Service
-    await sendOtpEmail({
-      recipientEmail: user.email,
-      recipientName: user.name || 'Underwriter',
-      otpCode,
-      expiresMinutes: 5
-    });
+    try {
+      await sendOtpEmail({
+        recipientEmail: user.email,
+        recipientName: user.name || 'Underwriter',
+        otpCode,
+        expiresMinutes: 5
+      });
+    } catch (emailErr) {
+      logger.error(`[Auth 2FA] Error sending OTP email to ${user.email}:`, emailErr);
+    }
 
     logger.info(`[Auth 2FA] Credentials verified for ${user.email}. OTP dispatched. Temporary token issued.`);
 
@@ -545,12 +549,16 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
       userId: user.id
     });
 
-    await sendOtpEmail({
-      recipientEmail: user.email,
-      recipientName: user.name || 'Underwriter',
-      otpCode: newOtpCode,
-      expiresMinutes: 5
-    });
+    try {
+      await sendOtpEmail({
+        recipientEmail: user.email,
+        recipientName: user.name || 'Underwriter',
+        otpCode: newOtpCode,
+        expiresMinutes: 5
+      });
+    } catch (emailErr) {
+      logger.error(`[Auth 2FA] Error resending OTP email to ${user.email}:`, emailErr);
+    }
 
     logger.info(`[Auth 2FA] Resent 2FA OTP code to ${user.email}`);
 

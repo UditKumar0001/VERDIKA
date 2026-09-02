@@ -41,9 +41,9 @@ export async function sendEmail({
   fromEmail,
   fromName
 }) {
-  const senderEmail = fromEmail || process.env.BREVO_FROM_EMAIL || 'security@verdika.internal';
-  const senderName = fromName || process.env.BREVO_FROM_NAME || 'Verdika Security';
-  const brevoApiKey = process.env.BREVO_API_KEY?.trim();
+  const senderEmail = fromEmail || config.brevoFromEmail || process.env.BREVO_FROM_EMAIL || 'udit129760@gmail.com';
+  const senderName = fromName || config.brevoFromName || process.env.BREVO_FROM_NAME || 'Verdika Security';
+  const brevoApiKey = (config.brevoApiKey || process.env.BREVO_API_KEY)?.trim();
 
   // 1. Primary Dispatch Method: Brevo HTTPS REST API
   if (brevoApiKey && !brevoApiKey.includes('<paste') && !brevoApiKey.includes('your_brevo')) {
