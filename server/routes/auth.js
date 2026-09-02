@@ -358,9 +358,12 @@ router.post('/login', authLimiter, async (req, res) => {
     const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
     const now = Date.now();
 
+    const existingRecord = otpStore.get(user.id);
+    const existingOtps = existingRecord?.otps ? existingRecord.otps.filter(entry => entry.expiresAt > now) : [];
+    existingOtps.push({ otp: otpCode, expiresAt });
+
     otpStore.set(user.id, {
-      otp: otpCode,
-      expiresAt,
+      otps: existingOtps,
       lastSentAt: now,
       email: user.email,
       userId: user.id
@@ -428,27 +431,34 @@ router.post('/verify-otp', authLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Invalid verification session.' });
     }
 
-    const storedOtp = otpStore.get(decoded.id);
-    if (!storedOtp) {
+    const storedRecord = otpStore.get(decoded.id);
+    if (!storedRecord) {
       return res.status(400).json({
-        error: 'No active verification code found or code has already been used. Please request a new code.',
+        error: 'No active verification code found. Please sign in again or request a new code.',
         code: 'OTP_EXPIRED'
       });
     }
 
-    // Check 5-minute expiration
-    if (Date.now() > storedOtp.expiresAt) {
+    const now = Date.now();
+    const validOtps = (storedRecord.otps || (storedRecord.otp ? [{ otp: storedRecord.otp, expiresAt: storedRecord.expiresAt }] : []))
+      .filter(entry => entry.expiresAt > now);
+
+    if (validOtps.length === 0) {
       otpStore.delete(decoded.id);
       return res.status(400).json({
-        error: 'Verification code has expired (5-minute limit). Please click "Resend code" to get a new code.',
+        error: 'Verification code has expired (5-minute limit). Please request a new code.',
         code: 'OTP_EXPIRED'
       });
     }
 
-    const cleanInputOtp = String(otp).trim();
-    if (storedOtp.otp !== cleanInputOtp) {
+    const cleanInputOtp = String(otp).trim().replace(/\D/g, '');
+    const isMatch = validOtps.some(entry => entry.otp === cleanInputOtp);
+
+    logger.info(`[Auth 2FA Verify] User: ${decoded.email}, Input: ${cleanInputOtp}, Active valid OTPs: ${validOtps.map(o => o.otp).join(', ')}, Match: ${isMatch}`);
+
+    if (!isMatch) {
       return res.status(400).json({
-        error: 'Invalid verification code. Please check your email and try again.',
+        error: 'Invalid verification code. Please check your email and enter the latest 6-digit code.',
         code: 'OTP_INVALID'
       });
     }
@@ -521,11 +531,11 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
     }
 
     const now = Date.now();
-    const storedOtp = otpStore.get(decoded.id);
+    const storedRecord = otpStore.get(decoded.id);
 
     // Enforce 30-second cooldown
-    if (storedOtp && storedOtp.lastSentAt && (now - storedOtp.lastSentAt < 30000)) {
-      const remainingSeconds = Math.ceil((30000 - (now - storedOtp.lastSentAt)) / 1000);
+    if (storedRecord && storedRecord.lastSentAt && (now - storedRecord.lastSentAt < 30000)) {
+      const remainingSeconds = Math.ceil((30000 - (now - storedRecord.lastSentAt)) / 1000);
       return res.status(429).json({
         error: `Please wait ${remainingSeconds}s before requesting a new code.`,
         remainingSeconds
@@ -540,9 +550,11 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
     const newOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = now + 5 * 60 * 1000;
 
+    const existingOtps = storedRecord?.otps ? storedRecord.otps.filter(entry => entry.expiresAt > now) : [];
+    existingOtps.push({ otp: newOtpCode, expiresAt });
+
     otpStore.set(user.id, {
-      otp: newOtpCode,
-      expiresAt,
+      otps: existingOtps,
       lastSentAt: now,
       email: user.email,
       userId: user.id
