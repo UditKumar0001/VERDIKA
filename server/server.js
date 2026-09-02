@@ -40,9 +40,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+// Health check endpoints (Publicly accessible without authentication)
+app.get(['/api/health', '/health'], (req, res) => {
+  res.json({ status: 'ok', message: 'Backend is running', timestamp: new Date().toISOString() });
 });
 
 // Mount application routes
