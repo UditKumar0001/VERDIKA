@@ -78,6 +78,7 @@ const initSchema = async () => {
       slug TEXT UNIQUE NOT NULL,
       email TEXT,
       status TEXT NOT NULL DEFAULT 'active',
+      default_interest_rate REAL NOT NULL DEFAULT 14.0,
       deactivated_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -162,8 +163,11 @@ const initSchema = async () => {
     if (!compColumns.some((c) => c.name === 'deactivated_at')) {
       await db.exec(`ALTER TABLE companies ADD COLUMN deactivated_at DATETIME`);
     }
+    if (!compColumns.some((c) => c.name === 'default_interest_rate')) {
+      await db.exec(`ALTER TABLE companies ADD COLUMN default_interest_rate REAL NOT NULL DEFAULT 14.0`);
+    }
   } catch (err) {
-    logger.warn('[DB Migration] companies status/deactivated_at check:', err.message);
+    logger.warn('[DB Migration] companies status/deactivated_at/default_interest_rate check:', err.message);
   }
 
   try {

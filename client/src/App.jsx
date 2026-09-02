@@ -20,6 +20,16 @@ import CompanySelector from './pages/CompanySelector';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import ApplicationStatus from './pages/ApplicationStatus';
 import AcceptInvite from './pages/AcceptInvite';
+import {
+  AboutPage,
+  PricingPage,
+  BlogPage,
+  CareersPage,
+  SecurityPage,
+  PrivacyPage,
+  TermsPage,
+  CompliancePage
+} from './pages/StaticPages';
 
 function App() {
   return (
@@ -37,6 +47,16 @@ function App() {
               <Route path="/apply/:companySlug" element={<PublicApply />} />
               <Route path="/status/:applicationToken" element={<ApplicationStatus />} />
               <Route path="/invite/:token" element={<AcceptInvite />} />
+
+              {/* Informational & Legal Pages */}
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/pricing" element={<PricingPage />} />
+              <Route path="/blog" element={<BlogPage />} />
+              <Route path="/careers" element={<CareersPage />} />
+              <Route path="/security" element={<SecurityPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/compliance" element={<CompliancePage />} />
 
               {/* Protected Routes */}
               <Route

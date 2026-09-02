@@ -115,7 +115,7 @@ export default function Landing() {
 
       {/* How It Works Section */}
       <div className="stack-wrapper">
-        <div className="stack-section" id="how-works-section">
+        <div className="stack-section" id="how-it-works">
           <div className="landing-section">
             <div className="section-header-center">
               <span className="preset-badge">Simple Process</span>

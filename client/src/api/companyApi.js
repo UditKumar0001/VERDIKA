@@ -68,6 +68,30 @@ export async function getMyCompany() {
 }
 
 /**
+ * Updates finance company settings (e.g. default interest rate)
+ * @param {Object} settings - { default_interest_rate, name }
+ * @returns {Promise<Object>} Updated company details
+ */
+export async function updateCompanySettings(settings) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/companies/my-company/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(settings)
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to update company settings.');
+    }
+    return data;
+  } catch (error) {
+    throw new Error(error.message || 'Failed to update company settings.');
+  }
+}
+
+/**
  * Submits public merchant application for a specific finance company
  * @param {string} slug - Company slug
  * @param {Object} payload - Application payload
@@ -308,6 +332,56 @@ export async function removeSuperAdmin(userId) {
   }
   return data;
 }
+
+/**
+ * Super Admin: Retrieves list of all Company Administrators across all finance companies
+ */
+export async function getCompanyAdmins() {
+  const res = await fetch(`${API_BASE_URL}/companies/admin/company-admins`, {
+    credentials: 'include'
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to retrieve company administrators.');
+  }
+  return data;
+}
+
+/**
+ * Super Admin: Directly creates a new Admin account for an existing Finance Company
+ */
+export async function createCompanyAdmin(payload) {
+  const res = await fetch(`${API_BASE_URL}/companies/admin/create-admin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to create company administrator.');
+  }
+  return data;
+}
+
+/**
+ * Super Admin: Revokes/removes a Company Admin account
+ */
+export async function removeCompanyAdmin(adminId) {
+  const res = await fetch(`${API_BASE_URL}/companies/admin/company-admins/${encodeURIComponent(adminId)}`, {
+    method: 'DELETE',
+    credentials: 'include'
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to revoke company admin.');
+  }
+  return data;
+}
+
 
 
 

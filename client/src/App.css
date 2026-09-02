@@ -7474,4 +7474,466 @@
   font-weight: 700;
 }
 
+/* ==========================================================================
+   Static Pages & Pricing Page Styles (Ultra-High Contrast & Brand Palette)
+   ========================================================================== */
+
+.static-page-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2.25rem 1.5rem 4rem 1.5rem;
+  width: 100%;
+}
+
+.static-header-banner {
+  background: linear-gradient(135deg, #0b1329 0%, #1e293b 100%);
+  border: 1px solid #334155;
+  border-radius: 14px;
+  padding: 2.25rem 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  color: #ffffff;
+}
+
+[data-theme="light"] .static-header-banner {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  border: 1px solid #334155;
+  color: #ffffff;
+}
+
+.static-header-title {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: #ffffff !important;
+  margin: 0;
+  letter-spacing: -0.5px;
+  line-height: 1.25;
+}
+
+.static-header-sub {
+  color: #cbd5e1 !important;
+  font-size: 1rem;
+  margin: 0.6rem 0 0 0;
+  line-height: 1.6;
+  font-weight: 400;
+}
+
+.static-content-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 14px;
+  padding: 2.5rem;
+  box-shadow: var(--shadow-md);
+  color: var(--text-main);
+  line-height: 1.7;
+}
+
+/* Pricing Grid & Cards */
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 1.75rem;
+  align-items: stretch;
+}
+
+.pricing-card {
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-card);
+  border-radius: 14px;
+  padding: 2.25rem 2rem;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-md);
+}
+
+.pricing-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+}
+
+[data-theme="light"] .pricing-card {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+}
+
+/* Featured / Most Popular Plan (FinTech Growth) */
+.pricing-card.pricing-featured {
+  background: linear-gradient(180deg, rgba(99, 102, 241, 0.12) 0%, var(--bg-card) 100%);
+  border: 2px solid #6366f1;
+  box-shadow: 0 0 25px rgba(99, 102, 241, 0.22), 0 8px 24px rgba(0, 0, 0, 0.35);
+  transform: scale(1.02);
+  z-index: 2;
+}
+
+[data-theme="light"] .pricing-card.pricing-featured {
+  background: linear-gradient(180deg, #f0f4ff 0%, #ffffff 100%);
+  border: 2.5px solid #4f46e5;
+  box-shadow: 0 0 25px rgba(79, 70, 229, 0.18), 0 10px 25px rgba(15, 23, 42, 0.1);
+}
+
+.pricing-card.pricing-featured:hover {
+  transform: scale(1.03) translateY(-3px);
+}
+
+/* Enterprise Plan */
+.pricing-card.pricing-enterprise {
+  border: 1.5px solid rgba(245, 158, 11, 0.5);
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.08);
+}
+
+[data-theme="light"] .pricing-card.pricing-enterprise {
+  border: 1.5px solid #d97706;
+  background: #ffffff;
+}
+
+.pricing-badge-popular {
+  position: absolute;
+  top: -12px;
+  right: 1.5rem;
+  background: linear-gradient(135deg, #6366f1 0%, #3b82f6 100%);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  padding: 0.3rem 0.85rem;
+  border-radius: 999px;
+  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.45);
+}
+
+.pricing-tier-tag {
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 0.4rem;
+  display: block;
+}
+
+.pricing-tier-tag.community {
+  color: #94a3b8;
+}
+[data-theme="light"] .pricing-tier-tag.community {
+  color: #64748b;
+}
+
+.pricing-tier-tag.growth {
+  color: #818cf8;
+}
+[data-theme="light"] .pricing-tier-tag.growth {
+  color: #4f46e5;
+}
+
+.pricing-tier-tag.enterprise {
+  color: #f59e0b;
+}
+[data-theme="light"] .pricing-tier-tag.enterprise {
+  color: #d97706;
+}
+
+.pricing-price-box {
+  margin: 0.75rem 0 1.25rem 0;
+}
+
+.pricing-price-main {
+  font-size: 2.2rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.pricing-price-main.community {
+  color: #38bdf8;
+}
+[data-theme="light"] .pricing-price-main.community {
+  color: #0284c7;
+}
+
+.pricing-price-main.growth {
+  color: #818cf8;
+}
+[data-theme="light"] .pricing-price-main.growth {
+  color: #4f46e5;
+}
+
+.pricing-price-main.enterprise {
+  color: #fbbf24;
+}
+[data-theme="light"] .pricing-price-main.enterprise {
+  color: #b45309;
+}
+
+.pricing-price-unit {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.pricing-desc {
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 1.5rem;
+  min-height: 42px;
+}
+
+.pricing-features-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 2.25rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  flex: 1;
+}
+
+.pricing-feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  font-size: 0.92rem;
+  color: var(--text-main);
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.pricing-feature-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.pricing-action-btn {
+  display: block;
+  width: 100%;
+  text-align: center;
+  padding: 0.85rem 1.25rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  border-radius: 9px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pricing-btn-primary {
+  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+}
+
+.pricing-btn-primary:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+  transform: translateY(-1px);
+}
+
+.pricing-btn-secondary {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1.5px solid var(--border-card);
+  color: var(--text-main) !important;
+}
+
+[data-theme="light"] .pricing-btn-secondary {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a !important;
+}
+
+.pricing-btn-secondary:hover {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: var(--accent-blue);
+  color: var(--accent-blue) !important;
+  transform: translateY(-1px);
+}
+
+.pricing-btn-enterprise {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1.5px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24 !important;
+}
+
+[data-theme="light"] .pricing-btn-enterprise {
+  background: rgba(217, 119, 6, 0.08);
+  border-color: #d97706;
+  color: #b45309 !important;
+}
+
+.pricing-btn-enterprise:hover {
+  background: rgba(245, 158, 11, 0.2);
+  border-color: #f59e0b;
+  transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   Shared Info Cards (About, Careers, Blog, Security, Legal)
+   ========================================================================== */
+
+.info-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.info-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-top: 1rem;
+}
+
+.info-card {
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-card);
+  border-radius: 12px;
+  padding: 1.75rem;
+  box-shadow: var(--shadow-sm);
+  color: var(--text-main);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.info-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--accent-blue);
+}
+
+[data-theme="light"] .info-card {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+}
+
+[data-theme="light"] .info-card:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+}
+
+.info-card-title {
+  font-size: 1.18rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin: 0 0 0.5rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  line-height: 1.35;
+}
+
+[data-theme="light"] .info-card-title {
+  color: #0f172a;
+}
+
+.info-card-desc {
+  font-size: 0.93rem;
+  color: var(--text-muted);
+  line-height: 1.65;
+  margin: 0;
+  opacity: 1 !important;
+}
+
+[data-theme="light"] .info-card-desc {
+  color: #334155;
+}
+
+.info-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .info-card-meta {
+  color: #64748b;
+}
+
+.info-card-tag {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+[data-theme="light"] .info-card-tag {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
+}
+
+.info-card-tag.tag-emerald {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+[data-theme="light"] .info-card-tag.tag-emerald {
+  background: #ecfdf5;
+  color: #059669;
+  border-color: #a7f3d0;
+}
+
+.info-card-tag.tag-purple {
+  background: rgba(139, 92, 246, 0.15);
+  color: #c084fc;
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+[data-theme="light"] .info-card-tag.tag-purple {
+  background: #f5f3ff;
+  color: #7c3aed;
+  border-color: #ddd6fe;
+}
+
+.info-card-tag.tag-amber {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+[data-theme="light"] .info-card-tag.tag-amber {
+  background: #fffbeb;
+  color: #d97706;
+  border-color: #fde68a;
+}
+
+.info-card-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+  color: #ffffff !important;
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 0.6rem 1.25rem;
+  border-radius: 8px;
+  text-decoration: none;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.info-card-btn:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.45);
+  transform: translateY(-1px);
+}
+
+
+
 

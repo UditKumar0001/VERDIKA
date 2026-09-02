@@ -35,6 +35,18 @@ export default function Footer() {
     }
   };
 
+  const handleAnchorScroll = (anchorId) => (e) => {
+    e.preventDefault();
+    if (window.location.pathname === '/') {
+      const target = document.getElementById(anchorId);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth' });
+      }
+    } else {
+      window.location.href = `/#${anchorId}`;
+    }
+  };
+
   return (
     <footer className="footer">
       <div className="footer-container">
@@ -145,21 +157,21 @@ export default function Footer() {
           {/* Column 2: Product */}
           <div className="footer-col">
             <span className="footer-col-title">Product</span>
-            <a href="/#how-it-works" className="footer-link">How It Works</a>
-            <a href="/#features" className="footer-link">Key Differentiators</a>
-            <a href="/#agents-section" className="footer-link">5-Agent Pipeline</a>
-            <a href="/#pricing" className="footer-link">Pricing &amp; Plans</a>
-            <a href="/#faq" className="footer-link">FAQ</a>
+            <a href="/#how-it-works" onClick={handleAnchorScroll('how-it-works')} className="footer-link">How It Works</a>
+            <a href="/#features" onClick={handleAnchorScroll('features')} className="footer-link">Key Differentiators</a>
+            <a href="/#agents-section" onClick={handleAnchorScroll('agents-section')} className="footer-link">5-Agent Pipeline</a>
+            <Link to="/pricing" className="footer-link">Pricing &amp; Plans</Link>
+            <a href="/#faq" onClick={handleAnchorScroll('faq')} className="footer-link">FAQ</a>
           </div>
 
           {/* Column 3: Company */}
           <div className="footer-col">
             <span className="footer-col-title">Company</span>
-            <a href="#about" className="footer-link">About Us</a>
-            <a href="#blog" className="footer-link">Risk Intelligence Blog</a>
-            <a href="#careers" className="footer-link">Careers <span className="footer-badge-hiring">Hiring</span></a>
-            <a href="mailto:support@verdika.com" className="footer-link">Contact Sales</a>
-            <a href="#security" className="footer-link">Security &amp; Compliance</a>
+            <Link to="/about" className="footer-link">About Us</Link>
+            <Link to="/blog" className="footer-link">Risk Intelligence Blog</Link>
+            <Link to="/careers" className="footer-link">Careers <span className="footer-badge-hiring">Hiring</span></Link>
+            <a href="mailto:support@verdika.com?subject=Enterprise%20Inquiry%20-%20Verdika%20Risk%20Engine" className="footer-link">Contact Sales</a>
+            <Link to="/security" className="footer-link">Security &amp; Compliance</Link>
           </div>
 
           {/* Column 4: Get Started */}
@@ -169,7 +181,7 @@ export default function Footer() {
             <Link to="/signup" className="footer-link">Create Account</Link>
             <Link to="/apply" className="footer-link">Find a Lender</Link>
             <Link to="/apply" className="footer-link">Submit Application</Link>
-            <Link to="/dashboard" className="footer-link">Underwriter Portal</Link>
+            <Link to="/login" className="footer-link">Underwriter Portal</Link>
           </div>
 
         </div>
@@ -181,11 +193,11 @@ export default function Footer() {
               © {new Date().getFullYear()} Verdika AI Risk Engine. All rights reserved.
             </p>
             <div className="footer-legal-links">
-              <a href="#privacy" className="footer-legal-link">Privacy Policy</a>
+              <Link to="/privacy" className="footer-legal-link">Privacy Policy</Link>
               <span className="footer-legal-dot">•</span>
-              <a href="#terms" className="footer-legal-link">Terms of Service</a>
+              <Link to="/terms" className="footer-legal-link">Terms of Service</Link>
               <span className="footer-legal-dot">•</span>
-              <a href="#compliance" className="footer-legal-link">Regulatory Disclosures</a>
+              <Link to="/compliance" className="footer-legal-link">Regulatory Disclosures</Link>
             </div>
           </div>
 

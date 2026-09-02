@@ -30,6 +30,7 @@ router.get('/', async (req, res) => {
         slug: comp.slug,
         email: comp.email,
         status: comp.status,
+        default_interest_rate: comp.default_interest_rate != null ? Number(comp.default_interest_rate) : 14.0,
         created_at: comp.created_at,
         apply_link: `${appOrigin}/apply/${comp.slug}`,
         badge: isDefault ? 'Core Institutional Partner' : 'Private Lending Tenant',
@@ -81,6 +82,7 @@ router.get('/lookup/:slug', async (req, res) => {
         name: company.name,
         slug: company.slug,
         status: company.status,
+        default_interest_rate: company.default_interest_rate != null ? Number(company.default_interest_rate) : 14.0,
         apply_link: `${appOrigin}/apply/${company.slug}`
       }
     });
@@ -133,7 +135,7 @@ router.post('/admin/:id/deactivate', requireAuth, requireRole('super_admin'), as
       return res.status(404).json({ error: 'Finance company not found.' });
     }
 
-    const updated = await Company.setStatus(id, 'removed');
+    const updated = await Company.setStatus(id, 'removed', req.user);
     logger.info(`[Super Admin] Deactivated company "${company.name}" (ID: ${id}) by Super Admin ${req.user.email}`);
 
     return res.json({
@@ -158,7 +160,7 @@ router.post('/admin/:id/reactivate', requireAuth, requireRole('super_admin'), as
       return res.status(404).json({ error: 'Finance company not found.' });
     }
 
-    const updated = await Company.setStatus(id, 'active');
+    const updated = await Company.setStatus(id, 'active', req.user);
     logger.info(`[Super Admin] Reactivated company "${company.name}" (ID: ${id}) by Super Admin ${req.user.email}`);
 
     return res.json({
@@ -214,6 +216,8 @@ router.get('/my-company', requireAuth, async (req, res) => {
         name: company.name,
         slug: company.slug,
         email: company.email,
+        status: company.status,
+        default_interest_rate: company.default_interest_rate != null ? Number(company.default_interest_rate) : 14.0,
         apply_link: `${appOrigin}/apply/${company.slug}`
       },
       stats: {
@@ -227,6 +231,67 @@ router.get('/my-company', requireAuth, async (req, res) => {
     logger.error('[Get My Company Error]:', error);
     return res.status(500).json({ error: 'Failed to retrieve company details.' });
   }
+});
+
+/**
+ * PUT /api/companies/my-company/settings
+ * Protected route (Admin or Super Admin only): Updates company configuration like default interest rate.
+ */
+router.put('/my-company/settings', requireAuth, async (req, res) => {
+  try {
+    const userCompanyId = req.user.company_id || req.user.companyId;
+    if (!userCompanyId) {
+      return res.status(404).json({ error: 'No finance company associated with your account.' });
+    }
+
+    if (req.user.role !== 'admin' && req.user.role !== 'super_admin') {
+      return res.status(403).json({ error: 'Forbidden: Admin privilege required to update company settings.' });
+    }
+
+    const { default_interest_rate, name } = req.body;
+
+    if (default_interest_rate !== undefined) {
+      const numRate = Number(default_interest_rate);
+      if (isNaN(numRate) || numRate <= 0 || numRate > 60) {
+        return res.status(400).json({ error: 'Default interest rate must be a valid percentage between 1% and 60%.' });
+      }
+    }
+
+    const updated = await Company.updateSettings(userCompanyId, {
+      default_interest_rate: default_interest_rate !== undefined ? Number(default_interest_rate) : undefined,
+      name: name ? String(name).trim() : undefined
+    });
+
+    if (!updated) {
+      return res.status(404).json({ error: 'Company not found or failed to update.' });
+    }
+
+    logger.info(`[Company Settings] Admin ${req.user.email} updated settings for "${updated.name}" (ID: ${userCompanyId}) - Interest Rate: ${updated.default_interest_rate}% p.a.`);
+
+    const appOrigin = req.headers.origin || 'http://localhost:5173';
+
+    return res.json({
+      message: 'Company settings updated successfully.',
+      company: {
+        id: updated.id,
+        name: updated.name,
+        slug: updated.slug,
+        email: updated.email,
+        status: updated.status,
+        default_interest_rate: updated.default_interest_rate != null ? Number(updated.default_interest_rate) : 14.0,
+        apply_link: `${appOrigin}/apply/${updated.slug}`
+      }
+    });
+  } catch (error) {
+    logger.error('[Update Company Settings Error]:', error);
+    return res.status(500).json({ error: 'Failed to update company settings.' });
+  }
+});
+
+// Alias for convenience
+router.put('/settings', requireAuth, async (req, res) => {
+  req.url = '/my-company/settings';
+  return router.handle(req, res);
 });
 
 /**
@@ -569,6 +634,154 @@ router.delete('/admin/super-admins/:id', requireAuth, requireRole('super_admin')
   } catch (error) {
     logger.error(`[Delete Super Admin ${req.params.id} Error]:`, error);
     return res.status(500).json({ error: 'Failed to remove Super Admin account.' });
+  }
+});
+
+/**
+ * GET /api/companies/admin/company-admins
+ * Protected route (Super Admin only): Returns all registered Company Administrators across all finance companies.
+ */
+router.get('/admin/company-admins', requireAuth, requireRole('super_admin'), async (req, res) => {
+  try {
+    const admins = await User.findCompanyAdmins();
+    return res.json({
+      admins
+    });
+  } catch (error) {
+    logger.error('[Get Company Admins Error]:', error);
+    return res.status(500).json({ error: 'Failed to retrieve company administrators.' });
+  }
+});
+
+/**
+ * POST /api/companies/admin/create-admin
+ * Protected route (Super Admin only): Directly creates a new Admin account for a specified Finance Company.
+ */
+router.post('/admin/create-admin', requireAuth, requireRole('super_admin'), async (req, res) => {
+  try {
+    const {
+      company_id,
+      name,
+      email,
+      password_mode = 'manual',
+      password: rawPassword
+    } = req.body;
+
+    if (!company_id) {
+      return res.status(400).json({ error: 'Please select a Finance Company for this administrator.' });
+    }
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Administrator full name is required.' });
+    }
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'Please provide a valid work email address.' });
+    }
+
+    // Verify company exists
+    const company = await Company.findById(company_id);
+    if (!company) {
+      return res.status(404).json({ error: 'Selected Finance Company not found.' });
+    }
+
+    // Check if email is already registered
+    const existingUser = await User.findByEmail(email);
+    if (existingUser) {
+      return res.status(409).json({
+        error: `An account with email ${email} already exists on Verdika.`
+      });
+    }
+
+    // Handle password generation / validation
+    let finalPassword = rawPassword;
+    if (password_mode === 'auto' || !finalPassword) {
+      const randomSuffix = crypto.randomBytes(4).toString('hex');
+      finalPassword = `VerdikaAdmin!${randomSuffix}`;
+    } else if (finalPassword.length < 8) {
+      return res.status(400).json({ error: 'Custom temporary password must be at least 8 characters long.' });
+    }
+
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(finalPassword, saltRounds);
+
+    const adminUser = await User.create({
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      passwordHash,
+      role: 'admin',
+      company_id: company.id
+    });
+
+    const appOrigin = req.headers.origin || 'http://localhost:5173';
+    const loginUrl = `${appOrigin}/login`;
+    const applyUrl = `${appOrigin}/apply/${company.slug}`;
+
+    try {
+      await sendCompanyAdminWelcomeEmail({
+        adminEmail: adminUser.email,
+        adminName: adminUser.name,
+        companyName: company.name,
+        password: finalPassword,
+        loginUrl,
+        applyUrl
+      });
+    } catch (mailErr) {
+      logger.error('[Create Admin Welcome Email Error]:', mailErr.message);
+    }
+
+    logger.info(`[Super Admin] Created Admin user ${adminUser.email} for Company "${company.name}" (ID: ${company.id})`);
+
+    return res.status(201).json({
+      message: `Administrator account for ${adminUser.name} created successfully!`,
+      admin: {
+        id: adminUser.id,
+        name: adminUser.name,
+        email: adminUser.email,
+        role: adminUser.role,
+        company_id: company.id,
+        company_name: company.name,
+        company_slug: company.slug,
+        company_status: company.status,
+        createdAt: adminUser.createdAt
+      },
+      company: {
+        id: company.id,
+        name: company.name,
+        slug: company.slug
+      },
+      temporary_password: finalPassword,
+      login_url: loginUrl,
+      apply_url: applyUrl
+    });
+  } catch (error) {
+    logger.error('[Create Company Admin Error]:', error);
+    return res.status(500).json({ error: error.message || 'Failed to create company administrator.' });
+  }
+});
+
+/**
+ * DELETE /api/companies/admin/company-admins/:id
+ * Protected route (Super Admin only): Revokes/removes a Company Admin account.
+ */
+router.delete('/admin/company-admins/:id', requireAuth, requireRole('super_admin'), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const targetUser = await User.findById(id);
+    if (!targetUser || targetUser.role !== 'admin') {
+      return res.status(404).json({ error: 'Company Admin account not found.' });
+    }
+
+    await User.deleteUser(id);
+    logger.info(`[Company Admin Revoked] ${req.user.email} removed Company Admin: ${targetUser.email} (ID: ${id})`);
+
+    return res.json({
+      message: `Administrator account for ${targetUser.email} has been revoked and removed.`
+    });
+  } catch (error) {
+    logger.error(`[Delete Company Admin ${req.params.id} Error]:`, error);
+    return res.status(500).json({ error: 'Failed to revoke Company Admin account.' });
   }
 });
 

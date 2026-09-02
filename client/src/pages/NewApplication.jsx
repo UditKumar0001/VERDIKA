@@ -253,11 +253,13 @@ export default function NewApplication({ publicCompany = null }) {
   const [formData, setFormData] = useState({
     business_name: '',
     business_category: 'electronics',
+    custom_business_category: '',
     gstin: '',
     registration_date: '',
     business_age_months: '',
     loan_amount: '500000',
-    loan_tenure_months: '12'
+    loan_tenure_months: '12',
+    custom_tenure_months: ''
   });
 
   // Step 2: Bank Details
@@ -598,10 +600,39 @@ export default function NewApplication({ publicCompany = null }) {
     setDocumentErrors({});
   };
 
+  // Derived Computed Properties for Category, Tenure and Interest Rate
+  const isCustomCategory = formData.business_category === 'other';
+  const effectiveCategory = isCustomCategory
+    ? (formData.custom_business_category?.trim() || 'Other')
+    : formData.business_category;
+
+  const isCustomTenure = formData.loan_tenure_months === 'custom';
+  const effectiveTenureMonths = isCustomTenure
+    ? (Number(formData.custom_tenure_months) || 12)
+    : (Number(formData.loan_tenure_months) || 12);
+
+  const interestRate = publicCompany?.default_interest_rate != null ? Number(publicCompany.default_interest_rate) : 14;
+
   // --- Step Navigation & Validation ---
   const validateStep1 = () => {
     if (!formData.business_name.trim()) {
       setError('Please provide a business legal name.');
+      return false;
+    }
+    if (isCustomCategory && !formData.custom_business_category?.trim()) {
+      setError('Please specify your custom business category.');
+      return false;
+    }
+    if (isCustomTenure) {
+      const numTenure = Number(formData.custom_tenure_months);
+      if (!formData.custom_tenure_months || isNaN(numTenure) || numTenure < 3 || numTenure > 84) {
+        setError('Please enter a valid custom loan tenure between 3 and 84 months.');
+        return false;
+      }
+    }
+    const numAmt = Number(formData.loan_amount);
+    if (!formData.loan_amount || isNaN(numAmt) || numAmt < 10000) {
+      setError('Please enter a valid loan amount of at least ₹10,000.');
       return false;
     }
     setError(null);
@@ -682,12 +713,12 @@ export default function NewApplication({ publicCompany = null }) {
 
       const payload = {
         business_name: formData.business_name,
-        business_category: formData.business_category,
+        business_category: effectiveCategory,
         gstin: formData.gstin || '27ABCDE1234F1Z5',
         registration_date: formData.registration_date || '2024-01-01',
         business_age_months: Number(formData.business_age_months) || 24,
         loan_amount: Number(formData.loan_amount) || 500000,
-        loan_tenure_months: Number(formData.loan_tenure_months) || 12,
+        loan_tenure_months: effectiveTenureMonths,
         transaction_history: historyToUse,
         bank_details: {
           account_holder: bankData.account_holder,
@@ -1036,12 +1067,42 @@ export default function NewApplication({ publicCompany = null }) {
                   className="auth-select"
                 >
                   <option value="electronics">Electronics & Gadgets</option>
-                  <option value="apparel">Apparel & Fashion</option>
-                  <option value="food">Food & Dining</option>
-                  <option value="services">Services & Logistics</option>
-                  <option value="grocery">Grocery & Supermart</option>
+                  <option value="apparel">Textiles, Apparel & Fashion</option>
+                  <option value="food">Food, Beverage & Dining</option>
+                  <option value="healthcare">Healthcare & Pharma</option>
+                  <option value="manufacturing">Manufacturing & Industrial</option>
+                  <option value="construction">Construction & Real Estate</option>
+                  <option value="automotive">Automotive & Dealerships</option>
+                  <option value="agriculture">Agriculture & Farming</option>
+                  <option value="professional_services">Professional Services & Consulting</option>
+                  <option value="it_services">IT & Software Services</option>
+                  <option value="education">Education & Training</option>
+                  <option value="hospitality">Hospitality & Tourism</option>
+                  <option value="wholesale">Wholesale & Trading</option>
+                  <option value="logistics">Logistics & Transport</option>
+                  <option value="grocery">Grocery & Supermarket</option>
+                  <option value="retail">General Retail & Trade</option>
+                  <option value="other">Other (please specify)...</option>
                 </select>
               </div>
+
+              {isCustomCategory && (
+                <div className="form-group full-width" style={{ animation: 'fadeIn 0.2s ease-in-out' }}>
+                  <label htmlFor="custom_business_category">
+                    Specify Custom Business Category * <span className="label-sub">(Type your industry)</span>
+                  </label>
+                  <input
+                    id="custom_business_category"
+                    name="custom_business_category"
+                    type="text"
+                    required
+                    placeholder="e.g. Solar Energy Installation & CleanTech"
+                    value={formData.custom_business_category}
+                    onChange={handleInputChange}
+                  />
+                  <span className="field-hint">Specify the primary domain/industry for your commercial operations.</span>
+                </div>
+              )}
 
               <div className="form-group">
                 <label htmlFor="gstin">GSTIN (15 Alphanumeric)</label>
@@ -1116,20 +1177,44 @@ export default function NewApplication({ publicCompany = null }) {
                   <option value="18">18 Months (1.5 Years)</option>
                   <option value="24">24 Months (2 Years)</option>
                   <option value="36">36 Months (3 Years)</option>
+                  <option value="48">48 Months (4 Years)</option>
+                  <option value="60">60 Months (5 Years)</option>
+                  <option value="custom">Custom (Specify Months)...</option>
                 </select>
               </div>
+
+              {isCustomTenure && (
+                <div className="form-group full-width" style={{ animation: 'fadeIn 0.2s ease-in-out' }}>
+                  <label htmlFor="custom_tenure_months">
+                    Custom Tenure (Months) * <span className="label-sub">(Min 3, Max 84 months)</span>
+                  </label>
+                  <input
+                    id="custom_tenure_months"
+                    name="custom_tenure_months"
+                    type="number"
+                    min="3"
+                    max="84"
+                    step="1"
+                    required
+                    placeholder="e.g. 42"
+                    value={formData.custom_tenure_months}
+                    onChange={handleInputChange}
+                  />
+                  <span className="field-hint">Enter any desired repayment term between 3 and 84 months. Live EMI estimator updates instantly.</span>
+                </div>
+              )}
             </div>
 
             {/* Live EMI Calculator Widget */}
             {(() => {
-              const emiCalc = calculateEmi(formData.loan_amount, formData.loan_tenure_months, 14);
+              const emiCalc = calculateEmi(formData.loan_amount, effectiveTenureMonths, interestRate);
               return (
                 <div className="emi-calculator-card">
                   <div className="emi-calc-header">
                     <h3 className="emi-calc-title">
                       <span>🧮</span> Live EMI & Repayment Estimator
                     </h3>
-                    <span className="emi-rate-badge">Interest: 14% p.a.</span>
+                    <span className="emi-rate-badge">Interest: {interestRate}% p.a.</span>
                   </div>
 
                   <div className="emi-metrics-row">
@@ -1138,7 +1223,7 @@ export default function NewApplication({ publicCompany = null }) {
                       <span className="emi-metric-val text-emerald">
                         ₹{emiCalc.emi.toLocaleString('en-IN')} <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: 'var(--text-dim)' }}>/ month</span>
                       </span>
-                      <span className="emi-metric-sub">{formData.loan_tenure_months || 12} monthly installments</span>
+                      <span className="emi-metric-sub">{effectiveTenureMonths} monthly installments {isCustomTenure ? '(Custom)' : ''}</span>
                     </div>
 
                     <div className="emi-metric-box">
@@ -1154,13 +1239,13 @@ export default function NewApplication({ publicCompany = null }) {
                       <span className="emi-metric-val" style={{ color: 'var(--accent-blue)' }}>
                         ₹{emiCalc.totalInterest.toLocaleString('en-IN')}
                       </span>
-                      <span className="emi-metric-sub">@ 14% reducing per annum</span>
+                      <span className="emi-metric-sub">@ {interestRate}% reducing per annum</span>
                     </div>
                   </div>
 
                   <p className="emi-disclaimer">
                     <span>ℹ️</span>
-                    <span>Estimated at 14% p.a. — actual rate and terms may vary based on final underwriter credit approval.</span>
+                    <span>Estimated at {interestRate}% p.a. — actual rate and terms may vary based on final underwriter credit approval.</span>
                   </p>
                 </div>
               );
@@ -1744,7 +1829,7 @@ export default function NewApplication({ publicCompany = null }) {
                 </div>
                 <div className="review-item">
                   <span className="review-item-label">Category</span>
-                  <span className="review-item-value capitalize">{formData.business_category || 'Electronics'}</span>
+                  <span className="review-item-value capitalize">{effectiveCategory}</span>
                 </div>
                 <div className="review-item">
                   <span className="review-item-label">GSTIN</span>
@@ -1763,14 +1848,14 @@ export default function NewApplication({ publicCompany = null }) {
                 <div className="review-item">
                   <span className="review-item-label">Preferred Tenure</span>
                   <span className="review-item-value font-semibold">
-                    {formData.loan_tenure_months || 12} Months
+                    {effectiveTenureMonths} Months {isCustomTenure ? '(Custom)' : ''}
                   </span>
                 </div>
                 {(() => {
-                  const emi = calculateEmi(formData.loan_amount, formData.loan_tenure_months, 14);
+                  const emi = calculateEmi(formData.loan_amount, effectiveTenureMonths, interestRate);
                   return (
                     <div className="review-item" style={{ gridColumn: 'span 2' }}>
-                      <span className="review-item-label">Estimated Monthly EMI (@ 14% p.a.)</span>
+                      <span className="review-item-label">Estimated Monthly EMI (@ {interestRate}% p.a.)</span>
                       <span className="review-item-value font-bold text-cyan">
                         ₹{emi.emi.toLocaleString('en-IN')} / mo (Total Repayable: ₹{emi.totalPayable.toLocaleString('en-IN')})
                       </span>

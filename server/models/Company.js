@@ -6,12 +6,13 @@ import { db } from '../config/db.js';
  * Represents a tenant / finance company / NBFC on the Verdika multi-tenant platform.
  */
 export class Company {
-  constructor({ id, name, slug, email, status = 'active', deactivated_at = null, created_at }) {
+  constructor({ id, name, slug, email, status = 'active', default_interest_rate = 14.0, deactivated_at = null, created_at }) {
     this.id = id;
     this.name = name || 'Finance Company';
     this.slug = slug;
     this.email = email || null;
     this.status = status || 'active';
+    this.default_interest_rate = default_interest_rate != null ? Number(default_interest_rate) : 14.0;
     this.deactivated_at = deactivated_at || null;
     this.created_at = created_at || new Date().toISOString();
   }
@@ -28,6 +29,7 @@ export class Company {
       slug: row.slug,
       email: row.email,
       status: row.status || 'active',
+      default_interest_rate: row.default_interest_rate != null ? Number(row.default_interest_rate) : 14.0,
       deactivated_at: row.deactivated_at || null,
       created_at: row.created_at
     });
@@ -72,27 +74,57 @@ export class Company {
     return Company.fromRow(row);
   }
 
-  static async create({ name, email, slug, status = 'active' }) {
+  static async create({ name, email, slug, status = 'active', default_interest_rate = 14.0 }) {
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
     const uniqueSlug = slug || await Company.generateSlug(name);
+    const finalStatus = (status && String(status).trim().toLowerCase()) || 'active';
+    const finalRate = default_interest_rate != null ? Number(default_interest_rate) : 14.0;
 
     await db.run(
-      `INSERT INTO companies (id, name, slug, email, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [id, name.trim(), uniqueSlug, email ? email.trim().toLowerCase() : null, status, createdAt]
+      `INSERT INTO companies (id, name, slug, email, status, default_interest_rate, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, name.trim(), uniqueSlug, email ? email.trim().toLowerCase() : null, finalStatus, finalRate, createdAt]
     );
 
-    return new Company({ id, name: name.trim(), slug: uniqueSlug, email, status, created_at: createdAt });
+    return new Company({ id, name: name.trim(), slug: uniqueSlug, email, status: finalStatus, default_interest_rate: finalRate, created_at: createdAt });
   }
 
-  static async setStatus(id, status) {
+  static async updateSettings(id, { default_interest_rate, name }) {
+    const company = await Company.findById(id);
+    if (!company) return null;
+
+    const rate = default_interest_rate != null ? Math.min(50, Math.max(1, Number(default_interest_rate))) : company.default_interest_rate;
+    const compName = name && name.trim() ? name.trim() : company.name;
+
+    await db.run(
+      `UPDATE companies SET default_interest_rate = ?, name = ? WHERE id = ?`,
+      [rate, compName, id]
+    );
+
+    return await Company.findById(id);
+  }
+
+  static async setStatus(id, status, actor = null) {
     const deactivated_at = status === 'removed' ? new Date().toISOString() : null;
+    const previous = await Company.findById(id);
+
     await db.run(
       `UPDATE companies SET status = ?, deactivated_at = ? WHERE id = ?`,
       [status, deactivated_at, id]
     );
-    return await Company.findById(id);
+
+    const updated = await Company.findById(id);
+    const timestamp = new Date().toISOString();
+    const actorEmail = typeof actor === 'object' && actor?.email ? actor.email : (typeof actor === 'string' ? actor : 'System/Internal');
+    const actorRole = typeof actor === 'object' && actor?.role ? actor.role : 'N/A';
+    const actorId = typeof actor === 'object' && actor?.id ? actor.id : 'N/A';
+
+    const auditMessage = `[SAFEGUARD AUDIT LOG] [${timestamp}] Company Status Change: "${previous?.name || id}" (${id}) changed from "${previous?.status || 'unknown'}" to "${status}" by Actor: ${actorEmail} (Role: ${actorRole}, ID: ${actorId}) [deactivated_at: ${deactivated_at || 'none'}]`;
+    console.log(auditMessage);
+    logger.info(auditMessage);
+
+    return updated;
   }
 
   static async findAll({ activeOnly = false } = {}) {
@@ -125,6 +157,7 @@ export class Company {
         slug: c.slug,
         email: c.email || adminUser?.email || 'N/A',
         status: c.status || 'active',
+        default_interest_rate: c.default_interest_rate != null ? Number(c.default_interest_rate) : 14.0,
         deactivated_at: c.deactivated_at || null,
         created_at: c.created_at,
         admin_name: adminUser?.name || 'Company Administrator',

@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { fetchMyApplications, fetchApplications } from '../api/applicationApi';
 import TeamManagement from '../components/TeamManagement';
 import CompanyAnalytics from '../components/CompanyAnalytics';
+import CompanySettings from '../components/CompanySettings';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -60,7 +61,7 @@ function ReviewerDashboard({ user, company }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState(
-    tabParam === 'analytics' || tabParam === 'team' ? tabParam : 'queue'
+    ['analytics', 'team', 'settings'].includes(tabParam) ? tabParam : 'queue'
   );
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -73,7 +74,7 @@ function ReviewerDashboard({ user, company }) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (tabParam && ['queue', 'analytics', 'team'].includes(tabParam)) {
+    if (tabParam && ['queue', 'analytics', 'team', 'settings'].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [tabParam]);
@@ -310,6 +311,17 @@ function ReviewerDashboard({ user, company }) {
           >
             👥 Team & Invites
           </button>
+          {user?.role === 'admin' && (
+            <button
+              type="button"
+              id="company-settings-tab-btn"
+              className={`filter-btn ${activeTab === 'settings' ? 'active' : ''}`}
+              onClick={() => handleTabChange('settings')}
+              style={{ padding: '0.45rem 1rem', fontSize: '0.85rem', fontWeight: 700, borderRadius: '6px' }}
+            >
+              ⚙️ Company Settings
+            </button>
+          )}
         </div>
       </div>
 
@@ -367,6 +379,8 @@ function ReviewerDashboard({ user, company }) {
         />
       ) : activeTab === 'team' ? (
         <TeamManagement user={user} company={company} />
+      ) : activeTab === 'settings' ? (
+        <CompanySettings user={user} company={company} />
       ) : (
         <>
           {/* Metrics Row */}
