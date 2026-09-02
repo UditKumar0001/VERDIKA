@@ -3,7 +3,7 @@
  * Connects to the backend underwriting pipeline, application store, and admin metrics.
  */
 
-import { API_BASE_URL } from './config.js';
+import { API_BASE_URL, getAuthHeaders } from './config.js';
 
 export const fetchApplications = async (filters = {}) => {
   const params = new URLSearchParams();
@@ -17,6 +17,7 @@ export const fetchApplications = async (filters = {}) => {
   const query = params.toString() ? `?${params.toString()}` : '';
   const res = await fetch(`${API_BASE_URL}/underwriting/applications${query}`, {
     method: 'GET',
+    headers: getAuthHeaders(),
     credentials: 'include'
   });
 
@@ -36,6 +37,7 @@ export const fetchMyApplications = async (filters = {}) => {
   const query = params.toString() ? `?${params.toString()}` : '';
   const res = await fetch(`${API_BASE_URL}/underwriting/my-applications${query}`, {
     method: 'GET',
+    headers: getAuthHeaders(),
     credentials: 'include'
   });
 
@@ -49,6 +51,7 @@ export const fetchMyApplications = async (filters = {}) => {
 export const fetchApplicationById = async (id) => {
   const res = await fetch(`${API_BASE_URL}/underwriting/applications/${id}`, {
     method: 'GET',
+    headers: getAuthHeaders(),
     credentials: 'include'
   });
 
@@ -62,7 +65,7 @@ export const fetchApplicationById = async (id) => {
 export const submitApplication = async (data) => {
   const res = await fetch(`${API_BASE_URL}/underwriting/applications`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     credentials: 'include',
     body: JSON.stringify(data)
   });
@@ -92,7 +95,7 @@ export const submitApplyApplication = async (payload) => {
 export const updateApplicationStatus = async (id, status, note = '') => {
   const res = await fetch(`${API_BASE_URL}/underwriting/applications/${id}/status`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     credentials: 'include',
     body: JSON.stringify({ status, note })
   });
@@ -107,6 +110,7 @@ export const updateApplicationStatus = async (id, status, note = '') => {
 export const fetchAdminMetrics = async () => {
   const res = await fetch(`${API_BASE_URL}/admin/metrics`, {
     method: 'GET',
+    headers: getAuthHeaders(),
     credentials: 'include'
   });
 
@@ -120,7 +124,7 @@ export const fetchAdminMetrics = async () => {
 export const generateSyntheticData = async (count = 10) => {
   const res = await fetch(`${API_BASE_URL}/admin/generate-data`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     credentials: 'include',
     body: JSON.stringify({ count })
   });
@@ -135,7 +139,7 @@ export const generateSyntheticData = async (count = 10) => {
 export const submitReviewDecision = async (id, { decision, notes }) => {
   const res = await fetch(`${API_BASE_URL}/underwriting/applications/${id}/review`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     credentials: 'include',
     body: JSON.stringify({ decision, notes })
   });
@@ -150,7 +154,7 @@ export const submitReviewDecision = async (id, { decision, notes }) => {
 export const requestApplicationInfo = async (id, { request_type, notes }) => {
   const res = await fetch(`${API_BASE_URL}/underwriting/applications/${id}/request-info`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     credentials: 'include',
     body: JSON.stringify({ request_type, notes })
   });

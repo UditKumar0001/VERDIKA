@@ -28,10 +28,17 @@ const generateToken = (user, company = null) => {
 };
 
 const setAuthCookie = (res, token) => {
+  const isProduction =
+    config.nodeEnv === 'production' ||
+    process.env.NODE_ENV === 'production' ||
+    Boolean(process.env.RENDER) ||
+    Boolean(process.env.VERCEL);
+
   res.cookie('token', token, {
     httpOnly: true,
-    secure: config.nodeEnv === 'production',
-    sameSite: config.nodeEnv === 'production' ? 'none' : 'lax',
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
   });
 };
@@ -103,6 +110,7 @@ router.post('/signup', authLimiter, async (req, res) => {
       const sanitizedUser = user.sanitize();
       return res.status(201).json({
         message: 'Merchant account registered successfully',
+        token,
         user: sanitizedUser,
         company: null
       });
@@ -133,7 +141,8 @@ router.post('/signup', authLimiter, async (req, res) => {
     const appOrigin = req.headers.origin || 'http://localhost:5173';
 
     return res.status(201).json({
-      message: 'Finance Company registered successfully',
+      message: 'Finance Company Admin registered successfully',
+      token,
       user: sanitizedUser,
       company: {
         id: company.id,
@@ -478,6 +487,7 @@ router.post('/verify-otp', authLimiter, async (req, res) => {
 
     return res.json({
       message: 'Login successful',
+      token,
       user: user.sanitize(),
       company: company ? {
         id: company.id,
@@ -603,7 +613,10 @@ router.get('/me', requireAuth, async (req, res) => {
 
     const appOrigin = req.headers.origin || 'http://localhost:5173';
 
+    const token = req.cookies?.token || req.headers.authorization?.split(' ')[1] || null;
+
     return res.json({
+      token,
       user: user.sanitize(),
       company: company ? {
         id: company.id,

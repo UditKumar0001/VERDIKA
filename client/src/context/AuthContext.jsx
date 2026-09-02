@@ -8,6 +8,8 @@ import {
   resendOtp as apiResendOtp
 } from '../api/authApi';
 
+import { setAuthToken, removeAuthToken } from '../api/config.js';
+
 /**
  * Authentication Context
  * Manages user session state, company details, initialization from token, login, 2FA OTP, and logout.
@@ -26,6 +28,7 @@ export function AuthProvider({ children }) {
       try {
         const data = await getCurrentUser();
         if (isMounted && data) {
+          if (data.token) setAuthToken(data.token);
           setUser(data.user || null);
           setCompany(data.company || null);
         }
@@ -52,6 +55,7 @@ export function AuthProvider({ children }) {
     try {
       const data = await apiLogin(credentials);
       if (!data.require_otp) {
+        if (data.token) setAuthToken(data.token);
         setUser(data.user);
         setCompany(data.company || null);
       }
@@ -66,6 +70,7 @@ export function AuthProvider({ children }) {
     setAuthError(null);
     try {
       const data = await apiVerifyOtp({ temp_token, otp });
+      if (data.token) setAuthToken(data.token);
       setUser(data.user);
       setCompany(data.company || null);
       return data;
@@ -83,6 +88,7 @@ export function AuthProvider({ children }) {
     setAuthError(null);
     try {
       const data = await apiSignup(userData);
+      if (data.token) setAuthToken(data.token);
       setUser(data.user);
       setCompany(data.company || null);
       return data;
@@ -96,6 +102,7 @@ export function AuthProvider({ children }) {
     try {
       await apiLogout();
     } finally {
+      removeAuthToken();
       setUser(null);
       setCompany(null);
       setAuthError(null);

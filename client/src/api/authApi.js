@@ -3,7 +3,7 @@
  * Wraps fetch calls to auth endpoints using httpOnly cookies (credentials: 'include').
  */
 
-import { API_BASE_URL } from './config.js';
+import { API_BASE_URL, getAuthHeaders } from './config.js';
 
 /**
  * POST /api/auth/signup
@@ -91,6 +91,7 @@ export const getCurrentUser = async () => {
   try {
     const res = await fetch(`${API_BASE_URL}/auth/me`, {
       method: 'GET',
+      headers: getAuthHeaders(),
       credentials: 'include'
     });
 
@@ -112,6 +113,7 @@ export const getCurrentUser = async () => {
 export const logout = async () => {
   const res = await fetch(`${API_BASE_URL}/auth/logout`, {
     method: 'POST',
+    headers: getAuthHeaders(),
     credentials: 'include'
   });
 

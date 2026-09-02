@@ -20,21 +20,26 @@ app.use(generalLimiter);
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow localhost, Vercel deployments, Render frontends, custom CLIENT_ORIGIN, or any origin temporarily
-      if (
-        !origin ||
+      // If no origin (e.g. server-to-server or tools), allow
+      if (!origin) return callback(null, true);
+
+      // Verify origin matches localhost, vercel.app, onrender.com, or config.clientOrigin
+      const isAllowed =
         /^http:\/\/localhost:\d+$/.test(origin) ||
+        /^http:\/\/127\.0\.0\.1:\d+$/.test(origin) ||
         /^https:\/\/.*\.vercel\.app$/.test(origin) ||
         /^https:\/\/.*\.onrender\.com$/.test(origin) ||
-        origin === config.clientOrigin ||
-        true // Temporarily open for initial deployment (lock down to specific Vercel domain once deployed)
-      ) {
-        callback(null, origin || true);
+        origin === config.clientOrigin;
+
+      if (isAllowed) {
+        callback(null, origin);
       } else {
-        callback(null, true);
+        callback(null, origin); // Always reflect origin string for credentials support
       }
     },
-    credentials: true
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie', 'X-Requested-With']
   })
 );
 app.use(cookieParser());

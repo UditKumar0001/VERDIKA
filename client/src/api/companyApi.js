@@ -3,7 +3,7 @@
  * Wraps fetch calls to company endpoints using httpOnly cookies (credentials: 'include').
  */
 
-import { API_BASE_URL } from './config.js';
+import { API_BASE_URL, getAuthHeaders, getAuthToken } from './config.js';
 
 /**
  * Public listing of all active registered finance companies
@@ -54,6 +54,7 @@ export async function getMyCompany() {
   try {
     const res = await fetch(`${API_BASE_URL}/companies/my-company`, {
       method: 'GET',
+      headers: getAuthHeaders(),
       credentials: 'include'
     });
 
@@ -76,7 +77,7 @@ export async function updateCompanySettings(settings) {
   try {
     const res = await fetch(`${API_BASE_URL}/companies/my-company/settings`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       credentials: 'include',
       body: JSON.stringify(settings)
     });
@@ -124,6 +125,7 @@ export async function submitPublicApplication(slug, payload) {
 export async function getCompanyTeam() {
   const res = await fetch(`${API_BASE_URL}/companies/team`, {
     method: 'GET',
+    headers: getAuthHeaders(),
     credentials: 'include'
   });
 
@@ -140,7 +142,7 @@ export async function getCompanyTeam() {
 export async function inviteTeamMember({ email, role = 'underwriter' }) {
   const res = await fetch(`${API_BASE_URL}/companies/invite`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     credentials: 'include',
     body: JSON.stringify({ email, role })
   });
@@ -158,6 +160,7 @@ export async function inviteTeamMember({ email, role = 'underwriter' }) {
 export async function revokeInvite(inviteId) {
   const res = await fetch(`${API_BASE_URL}/companies/invite/${inviteId}`, {
     method: 'DELETE',
+    headers: getAuthHeaders(),
     credentials: 'include'
   });
 
@@ -205,8 +208,11 @@ export async function acceptInvite({ token, name, password }) {
  * Super Admin: Retrieves all registered finance companies with enriched statistics
  */
 export async function getSuperAdminCompanies() {
+  const headers = getAuthHeaders();
+  console.log('[SUPER ADMIN] getSuperAdminCompanies request. Token present:', Boolean(getAuthToken()), '| Headers:', headers);
   const res = await fetch(`${API_BASE_URL}/companies/admin/all`, {
     method: 'GET',
+    headers,
     credentials: 'include'
   });
 
@@ -223,6 +229,7 @@ export async function getSuperAdminCompanies() {
 export async function deactivateCompany(companyId) {
   const res = await fetch(`${API_BASE_URL}/companies/admin/${encodeURIComponent(companyId)}/deactivate`, {
     method: 'POST',
+    headers: getAuthHeaders(),
     credentials: 'include'
   });
 
@@ -239,6 +246,7 @@ export async function deactivateCompany(companyId) {
 export async function reactivateCompany(companyId) {
   const res = await fetch(`${API_BASE_URL}/companies/admin/${encodeURIComponent(companyId)}/reactivate`, {
     method: 'POST',
+    headers: getAuthHeaders(),
     credentials: 'include'
   });
 
@@ -255,7 +263,7 @@ export async function reactivateCompany(companyId) {
 export async function createFinanceCompany(payload) {
   const res = await fetch(`${API_BASE_URL}/companies/admin/create-company`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     credentials: 'include',
     body: JSON.stringify(payload)
   });
@@ -273,6 +281,7 @@ export async function createFinanceCompany(payload) {
 export async function getSuperAdmins() {
   const res = await fetch(`${API_BASE_URL}/companies/admin/super-admins`, {
     method: 'GET',
+    headers: getAuthHeaders(),
     credentials: 'include'
   });
 
@@ -289,7 +298,7 @@ export async function getSuperAdmins() {
 export async function inviteSuperAdmin({ email, current_admin_password }) {
   const res = await fetch(`${API_BASE_URL}/companies/admin/invite-super-admin`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     credentials: 'include',
     body: JSON.stringify({ email, current_admin_password })
   });
@@ -307,6 +316,7 @@ export async function inviteSuperAdmin({ email, current_admin_password }) {
 export async function revokeSuperAdminInvite(inviteId) {
   const res = await fetch(`${API_BASE_URL}/companies/admin/super-admin-invites/${encodeURIComponent(inviteId)}`, {
     method: 'DELETE',
+    headers: getAuthHeaders(),
     credentials: 'include'
   });
 
@@ -323,6 +333,7 @@ export async function revokeSuperAdminInvite(inviteId) {
 export async function removeSuperAdmin(userId) {
   const res = await fetch(`${API_BASE_URL}/companies/admin/super-admins/${encodeURIComponent(userId)}`, {
     method: 'DELETE',
+    headers: getAuthHeaders(),
     credentials: 'include'
   });
 
@@ -338,6 +349,7 @@ export async function removeSuperAdmin(userId) {
  */
 export async function getCompanyAdmins() {
   const res = await fetch(`${API_BASE_URL}/companies/admin/company-admins`, {
+    headers: getAuthHeaders(),
     credentials: 'include'
   });
 
@@ -354,7 +366,7 @@ export async function getCompanyAdmins() {
 export async function createCompanyAdmin(payload) {
   const res = await fetch(`${API_BASE_URL}/companies/admin/create-admin`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     credentials: 'include',
     body: JSON.stringify(payload)
   });
@@ -372,6 +384,7 @@ export async function createCompanyAdmin(payload) {
 export async function removeCompanyAdmin(adminId) {
   const res = await fetch(`${API_BASE_URL}/companies/admin/company-admins/${encodeURIComponent(adminId)}`, {
     method: 'DELETE',
+    headers: getAuthHeaders(),
     credentials: 'include'
   });
 
