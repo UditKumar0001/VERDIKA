@@ -14,6 +14,7 @@ import {
   createCompanyAdmin,
   removeCompanyAdmin
 } from '../api/companyApi';
+import { getAuthToken, removeAuthToken } from '../api/config.js';
 
 /**
  * Platform Super Admin Dashboard
@@ -143,6 +144,12 @@ export default function SuperAdminDashboard() {
   };
 
   useEffect(() => {
+    const token = getAuthToken();
+    if (!token) {
+      setError('Your secure session token is missing. Please click "Sign In Again" below.');
+      setLoadingCompanies(false);
+      return;
+    }
     fetchCompaniesList();
     fetchCompanyAdminsList();
     fetchSuperAdminsList();
@@ -542,8 +549,21 @@ export default function SuperAdminDashboard() {
         )}
 
         {error && (
-          <div className="super-admin-alert error">
+          <div className="super-admin-alert error" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
             <span>⚠️ {error}</span>
+            {(error.includes('token') || error.includes('Unauthorized') || error.includes('session') || error.includes('expired')) && (
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ padding: '0.45rem 1.1rem', fontSize: '0.85rem', cursor: 'pointer', borderRadius: '6px' }}
+                onClick={() => {
+                  removeAuthToken();
+                  window.location.href = '/login';
+                }}
+              >
+                🔑 Sign In Again →
+              </button>
+            )}
             <button
               type="button"
               className="alert-close-btn"

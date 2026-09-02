@@ -21,9 +21,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const sqlitePath = path.resolve(__dirname, '../../data/verdika.sqlite');
-const targetPgUrl = process.argv[2] || process.env.DATABASE_URL;
+let rawPgUrl = (process.argv[2] || process.env.DATABASE_URL || '').trim();
 
-if (!targetPgUrl || (!targetPgUrl.startsWith('postgres://') && !targetPgUrl.startsWith('postgresql://'))) {
+if (rawPgUrl && !rawPgUrl.startsWith('postgres://') && !rawPgUrl.startsWith('postgresql://')) {
+  rawPgUrl = `postgresql://${rawPgUrl}`;
+}
+
+const targetPgUrl = rawPgUrl;
+
+if (!targetPgUrl) {
   console.error('\n❌ ERROR: Target PostgreSQL URL is required.');
   console.log('Usage: node scripts/migrate_sqlite_to_pg.js "postgres://user:password@host:5432/dbname"');
   console.log('Or add DATABASE_URL=postgres://... in your .env file.\n');
