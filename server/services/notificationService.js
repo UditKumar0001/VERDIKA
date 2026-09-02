@@ -49,6 +49,8 @@ export async function sendEmail({
   if (brevoApiKey && !brevoApiKey.includes('<paste') && !brevoApiKey.includes('your_brevo')) {
     try {
       const startTime = Date.now();
+      console.log(`\n[EMAIL] Attempting send to ${to} (Subject: "${subject}")`);
+      console.log(`[EMAIL CONFIG] Sender: "${senderName}" <${senderEmail}> | Brevo Key Present: ${Boolean(brevoApiKey)} (Len: ${brevoApiKey?.length})`);
       logger.info(`[Email Service] Attempting delivery via Brevo to ${to} (${subject})...`);
 
       const brevoPayload = {
@@ -79,6 +81,9 @@ export async function sendEmail({
       const durationMs = Date.now() - startTime;
       const responseData = await response.json().catch(() => ({}));
 
+      console.log(`[BREVO HTTP STATUS] ${response.status} ${response.statusText} (${durationMs}ms)`);
+      console.log(`[BREVO RESPONSE DATA]`, JSON.stringify(responseData, null, 2));
+
       if (response.ok) {
         logger.info(`✅ [Brevo Delivery SUCCESS in ${durationMs}ms] Message ID: ${responseData.messageId} delivered to ${to}`);
         return {
@@ -98,9 +103,11 @@ export async function sendEmail({
         logger.warn(`⚠️ [Brevo Sender Warning]: Sender email "${senderEmail}" may need verification in your Brevo account dashboard (Senders & IP).`);
       }
     } catch (apiErr) {
+      console.error(`❌ [BREVO EXCEPTION]:`, apiErr);
       logger.error(`❌ [Brevo Exception]:`, apiErr.message);
     }
   } else {
+    console.warn(`[EMAIL WARNING] No active Brevo API key configured in env/config.`);
     logger.info(`[Email Service] No active Brevo API key configured in .env.`);
   }
 
