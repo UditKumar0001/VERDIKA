@@ -10,4 +10,6 @@ export const API_BASE_URL = RAW_API_URL.endsWith('/api')
   ? RAW_API_URL
   : `${RAW_API_URL.replace(/\/$/, '')}/api`;
 
+console.log('API Base URL:', API_BASE_URL, '| import.meta.env.VITE_API_URL:', import.meta.env.VITE_API_URL, '| Mode:', import.meta.env.MODE);
+
 export default API_BASE_URL;
