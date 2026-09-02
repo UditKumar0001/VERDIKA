@@ -38,7 +38,7 @@ if (!rawJwtSecret) {
 export const config = {
   port: parseInt(process.env.PORT, 10) || 5000,
   nodeEnv: process.env.NODE_ENV || 'development',
-  clientOrigin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
+  clientOrigin: process.env.CLIENT_ORIGIN || 'https://verdika.vercel.app',
   jwtSecret: rawJwtSecret,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   databaseUrl: process.env.DATABASE_URL?.trim() || null,

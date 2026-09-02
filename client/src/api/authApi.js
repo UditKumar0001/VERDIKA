@@ -3,8 +3,7 @@
  * Wraps fetch calls to auth endpoints using httpOnly cookies (credentials: 'include').
  */
 
-const RAW_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const API_BASE_URL = RAW_API_URL.endsWith('/api') ? RAW_API_URL : `${RAW_API_URL.replace(/\/$/, '')}/api`;
+import { API_BASE_URL } from './config.js';
 
 /**
  * POST /api/auth/signup
