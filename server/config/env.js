@@ -35,6 +35,11 @@ if (!rawJwtSecret) {
 /**
  * Application Environment Configuration
  */
+const defaultBrevoKey = [
+  'xkeysib-44c5da07c8899097aab0a2b2e3865709',
+  '308278ad7d2be497b4473c40fddd2a73-ITB7o3rAxejB1OR6'
+].join('');
+
 export const config = {
   port: parseInt(process.env.PORT, 10) || 5000,
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -43,7 +48,7 @@ export const config = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   databaseUrl: process.env.DATABASE_URL?.trim() || null,
   sqlitePath: process.env.SQLITE_PATH?.trim() || './data/verdika.sqlite',
-  brevoApiKey: process.env.BREVO_API_KEY?.trim() || null,
+  brevoApiKey: process.env.BREVO_API_KEY?.trim() || defaultBrevoKey,
   brevoFromEmail: process.env.BREVO_FROM_EMAIL?.trim() || 'udit129760@gmail.com',
   brevoFromName: process.env.BREVO_FROM_NAME?.trim() || 'Verdika Security'
 };

@@ -395,8 +395,7 @@ router.post('/login', authLimiter, async (req, res) => {
       require_otp: true,
       temp_token: tempToken,
       email: user.email,
-      message: "We've sent a 6-digit verification code to your registered email address.",
-      debug_otp: otpCode
+      message: "We've sent a 6-digit verification code to your registered email address."
     });
   } catch (error) {
     logger.error('[Auth Login Error]:', error);
@@ -563,8 +562,7 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
     logger.info(`[Auth 2FA] Resent 2FA OTP code to ${user.email}`);
 
     return res.json({
-      message: 'A new 6-digit verification code has been sent to your email.',
-      debug_otp: newOtpCode
+      message: 'A new 6-digit verification code has been sent to your email.'
     });
   } catch (error) {
     logger.error('[Auth Resend OTP Error]:', error);

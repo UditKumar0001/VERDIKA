@@ -21,7 +21,6 @@ export default function Login() {
   const [resendStatus, setResendStatus] = useState('');
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [isResending, setIsResending] = useState(false);
-  const [backupOtp, setBackupOtp] = useState('');
 
   const otpInputRefs = useRef([]);
 
@@ -71,7 +70,6 @@ export default function Login() {
       const res = await login({ email, password });
       if (res && res.require_otp) {
         setTempToken(res.temp_token);
-        if (res.debug_otp) setBackupOtp(res.debug_otp);
         setStep('otp');
         setOtpDigits(['', '', '', '', '', '']);
         setOtpCooldown(30); // 30-second cooldown before resend
@@ -167,7 +165,6 @@ export default function Login() {
 
     try {
       const res = await resendOtp({ temp_token: tempToken });
-      if (res?.debug_otp) setBackupOtp(res.debug_otp);
       setResendStatus(res.message || 'A fresh 6-digit verification code has been sent to your email.');
       setOtpCooldown(30);
       setOtpDigits(['', '', '', '', '', '']);
@@ -371,45 +368,6 @@ export default function Login() {
                 <span>⏱️</span>
                 <span>Code expires in <strong>5 minutes</strong></span>
               </div>
-
-              {backupOtp && (
-                <div style={{
-                  margin: '0.75rem 0',
-                  padding: '0.55rem 0.85rem',
-                  background: 'rgba(59, 130, 246, 0.08)',
-                  border: '1px dashed rgba(59, 130, 246, 0.35)',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '0.5rem',
-                  fontSize: '0.82rem'
-                }}>
-                  <span style={{ color: 'var(--text-muted)' }}>
-                    Instant Code: <strong style={{ color: 'var(--accent-cyan)', letterSpacing: '1px', fontFamily: 'monospace', fontSize: '0.95rem' }}>{backupOtp}</strong>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const digits = String(backupOtp).split('');
-                      setOtpDigits(digits);
-                      if (otpInputRefs.current[5]) otpInputRefs.current[5].focus();
-                    }}
-                    style={{
-                      padding: '0.25rem 0.6rem',
-                      background: 'linear-gradient(135deg, #3b82f6, #6366f1)',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '6px',
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Auto-Fill ⚡
-                  </button>
-                </div>
-              )}
 
               <button
                 type="submit"
