@@ -380,19 +380,17 @@ router.post('/login', authLimiter, async (req, res) => {
       { expiresIn: '5m' }
     );
 
-    // Dispatch OTP via Email Service
-    try {
-      await sendOtpEmail({
-        recipientEmail: user.email,
-        recipientName: user.name || 'Underwriter',
-        otpCode,
-        expiresMinutes: 5
-      });
-    } catch (emailErr) {
-      logger.error(`[Auth 2FA] Error sending OTP email to ${user.email}:`, emailErr);
-    }
+    // Dispatch OTP via Email Service asynchronously (fire-and-forget so response is instant)
+    sendOtpEmail({
+      recipientEmail: user.email,
+      recipientName: user.name || 'Underwriter',
+      otpCode,
+      expiresMinutes: 5
+    }).catch((emailErr) => {
+      logger.error(`[Auth 2FA Background Error] Failed to dispatch OTP email to ${user.email}:`, emailErr);
+    });
 
-    logger.info(`[Auth 2FA] Credentials verified for ${user.email}. OTP dispatched. Temporary token issued.`);
+    logger.info(`[Auth 2FA] Credentials verified for ${user.email}. OTP dispatched asynchronously. Temporary token issued.`);
 
     return res.json({
       require_otp: true,
@@ -451,10 +449,17 @@ router.post('/verify-otp', authLimiter, async (req, res) => {
       });
     }
 
-    const cleanInputOtp = String(otp).trim().replace(/\D/g, '');
-    const isMatch = validOtps.some(entry => entry.otp === cleanInputOtp);
+    const cleanInputOtp = String(otp || '').trim().replace(/\D/g, '');
+    const isMatch = validOtps.some(entry => String(entry.otp).trim() === cleanInputOtp);
 
-    logger.info(`[Auth 2FA Verify] User: ${decoded.email}, Input: ${cleanInputOtp}, Active valid OTPs: ${validOtps.map(o => o.otp).join(', ')}, Match: ${isMatch}`);
+    console.log('\n======================================================');
+    console.log('[AUTH 2FA VERIFICATION ATTEMPT]');
+    console.log('User Email:', decoded.email);
+    console.log('User ID:', decoded.id);
+    console.log('Client Submitted OTP:', `"${cleanInputOtp}" (Length: ${cleanInputOtp.length})`);
+    console.log('Server Active Valid OTPs:', validOtps.map(o => `"${o.otp}" (Expires in ${Math.round((o.expiresAt - now) / 1000)}s)`));
+    console.log('Match Result:', isMatch);
+    console.log('======================================================\n');
 
     if (!isMatch) {
       return res.status(400).json({
@@ -560,18 +565,16 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
       userId: user.id
     });
 
-    try {
-      await sendOtpEmail({
-        recipientEmail: user.email,
-        recipientName: user.name || 'Underwriter',
-        otpCode: newOtpCode,
-        expiresMinutes: 5
-      });
-    } catch (emailErr) {
-      logger.error(`[Auth 2FA] Error resending OTP email to ${user.email}:`, emailErr);
-    }
+    sendOtpEmail({
+      recipientEmail: user.email,
+      recipientName: user.name || 'Underwriter',
+      otpCode: newOtpCode,
+      expiresMinutes: 5
+    }).catch((emailErr) => {
+      logger.error(`[Auth 2FA Background Error] Error resending OTP email to ${user.email}:`, emailErr);
+    });
 
-    logger.info(`[Auth 2FA] Resent 2FA OTP code to ${user.email}`);
+    logger.info(`[Auth 2FA] Resent 2FA OTP code asynchronously to ${user.email}`);
 
     return res.json({
       message: 'A new 6-digit verification code has been sent to your email.'

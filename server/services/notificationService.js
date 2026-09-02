@@ -48,6 +48,7 @@ export async function sendEmail({
   // 1. Primary Dispatch Method: Brevo HTTPS REST API
   if (brevoApiKey && !brevoApiKey.includes('<paste') && !brevoApiKey.includes('your_brevo')) {
     try {
+      const startTime = Date.now();
       logger.info(`[Email Service] Attempting delivery via Brevo to ${to} (${subject})...`);
 
       const brevoPayload = {
@@ -75,14 +76,16 @@ export async function sendEmail({
         body: JSON.stringify(brevoPayload)
       });
 
+      const durationMs = Date.now() - startTime;
       const responseData = await response.json().catch(() => ({}));
 
       if (response.ok) {
-        logger.info(`✅ [Brevo Delivery SUCCESS] Message ID: ${responseData.messageId} delivered to ${to}`);
+        logger.info(`✅ [Brevo Delivery SUCCESS in ${durationMs}ms] Message ID: ${responseData.messageId} delivered to ${to}`);
         return {
           success: true,
           provider: 'Brevo',
-          messageId: responseData.messageId
+          messageId: responseData.messageId,
+          durationMs
         };
       }
 
