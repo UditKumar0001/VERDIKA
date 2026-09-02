@@ -301,9 +301,7 @@ router.post('/accept-invite', authLimiter, async (req, res) => {
 });
 
 import { sendOtpEmail } from '../services/notificationService.js';
-
-// In-memory active OTP storage for 2FA verification
-const otpStore = new Map();
+import { Otp, SERVER_BOOT_TIME } from '../models/Otp.js';
 
 /**
  * POST /api/auth/login
@@ -353,20 +351,14 @@ router.post('/login', authLimiter, async (req, res) => {
 
     console.log('Login outcome: SUCCESS (Credentials verified)');
 
-    // Generate 6-digit OTP and 5-minute expiration
+    // Generate 6-digit OTP and persist to SQLite database
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
-    const now = Date.now();
 
-    const existingRecord = otpStore.get(user.id);
-    const existingOtps = existingRecord?.otps ? existingRecord.otps.filter(entry => entry.expiresAt > now) : [];
-    existingOtps.push({ otp: otpCode, expiresAt });
-
-    otpStore.set(user.id, {
-      otps: existingOtps,
-      lastSentAt: now,
+    await Otp.create({
+      userId: user.id,
       email: user.email,
-      userId: user.id
+      otpCode,
+      expiresMinutes: 5
     });
 
     // Temporary signed challenge token for OTP verification
@@ -429,47 +421,43 @@ router.post('/verify-otp', authLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Invalid verification session.' });
     }
 
-    const storedRecord = otpStore.get(decoded.id);
-    if (!storedRecord) {
-      return res.status(400).json({
-        error: 'No active verification code found. Please sign in again or request a new code.',
-        code: 'OTP_EXPIRED'
-      });
-    }
-
-    const now = Date.now();
-    const validOtps = (storedRecord.otps || (storedRecord.otp ? [{ otp: storedRecord.otp, expiresAt: storedRecord.expiresAt }] : []))
-      .filter(entry => entry.expiresAt > now);
-
-    if (validOtps.length === 0) {
-      otpStore.delete(decoded.id);
-      return res.status(400).json({
-        error: 'Verification code has expired (5-minute limit). Please request a new code.',
-        code: 'OTP_EXPIRED'
-      });
-    }
-
     const cleanInputOtp = String(otp || '').trim().replace(/\D/g, '');
-    const isMatch = validOtps.some(entry => String(entry.otp).trim() === cleanInputOtp);
 
+    const result = await Otp.verifyAndConsume({
+      userId: decoded.id,
+      inputOtp: cleanInputOtp
+    });
+
+    const verifyAttemptTime = new Date().toISOString();
     console.log('\n======================================================');
-    console.log('[AUTH 2FA VERIFICATION ATTEMPT]');
+    console.log('[AUTH 2FA PERSISTENT VERIFY ATTEMPT]');
+    console.log('Server Boot Time:', SERVER_BOOT_TIME);
+    console.log('Verify Attempt Time:', verifyAttemptTime);
     console.log('User Email:', decoded.email);
     console.log('User ID:', decoded.id);
     console.log('Client Submitted OTP:', `"${cleanInputOtp}" (Length: ${cleanInputOtp.length})`);
-    console.log('Server Active Valid OTPs:', validOtps.map(o => `"${o.otp}" (Expires in ${Math.round((o.expiresAt - now) / 1000)}s)`));
-    console.log('Match Result:', isMatch);
+    console.log('Verification Match Result:', result.valid);
+    if (result.matchedRecord) {
+      console.log('Matched Record Created At:', result.matchedRecord.created_at);
+      console.log('Total Active Codes in Window:', result.activeCount);
+    } else {
+      console.log('Active Codes in SQLite DB:', result.activeRecords?.map(o => `"${o.otp_code}"`));
+    }
     console.log('======================================================\n');
 
-    if (!isMatch) {
+    if (!result.valid) {
+      if (!result.activeRecords || result.activeRecords.length === 0) {
+        return res.status(400).json({
+          error: 'Verification code has expired (5-minute limit) or was already used. Please request a new code.',
+          code: 'OTP_EXPIRED'
+        });
+      }
+
       return res.status(400).json({
         error: 'Invalid verification code. Please check your email and enter the latest 6-digit code.',
         code: 'OTP_INVALID'
       });
     }
-
-    // Valid OTP - Remove single-use code from store
-    otpStore.delete(decoded.id);
 
     const user = await User.findById(decoded.id);
     if (!user) {
@@ -536,15 +524,18 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
     }
 
     const now = Date.now();
-    const storedRecord = otpStore.get(decoded.id);
+    const latestOtp = await Otp.getLatestOtp(decoded.id);
 
     // Enforce 30-second cooldown
-    if (storedRecord && storedRecord.lastSentAt && (now - storedRecord.lastSentAt < 30000)) {
-      const remainingSeconds = Math.ceil((30000 - (now - storedRecord.lastSentAt)) / 1000);
-      return res.status(429).json({
-        error: `Please wait ${remainingSeconds}s before requesting a new code.`,
-        remainingSeconds
-      });
+    if (latestOtp && latestOtp.created_at) {
+      const createdMs = new Date(latestOtp.created_at).getTime();
+      if (now - createdMs < 30000) {
+        const remainingSeconds = Math.ceil((30000 - (now - createdMs)) / 1000);
+        return res.status(429).json({
+          error: `Please wait ${remainingSeconds}s before requesting a new code.`,
+          remainingSeconds
+        });
+      }
     }
 
     const user = await User.findById(decoded.id);
@@ -553,16 +544,12 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
     }
 
     const newOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = now + 5 * 60 * 1000;
 
-    const existingOtps = storedRecord?.otps ? storedRecord.otps.filter(entry => entry.expiresAt > now) : [];
-    existingOtps.push({ otp: newOtpCode, expiresAt });
-
-    otpStore.set(user.id, {
-      otps: existingOtps,
-      lastSentAt: now,
+    await Otp.create({
+      userId: user.id,
       email: user.email,
-      userId: user.id
+      otpCode: newOtpCode,
+      expiresMinutes: 5
     });
 
     sendOtpEmail({
