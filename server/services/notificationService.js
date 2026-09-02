@@ -39,8 +39,10 @@ export async function sendEmail({
   html,
   text,
   fromEmail,
-  fromName
+  fromName,
+  requestId
 }) {
+  const reqTag = requestId ? `[${requestId}]` : '[EMAIL]';
   const senderEmail = fromEmail || config.brevoFromEmail || process.env.BREVO_FROM_EMAIL || 'udit129760@gmail.com';
   const senderName = fromName || config.brevoFromName || process.env.BREVO_FROM_NAME || 'Verdika Security';
   const brevoApiKey = (config.brevoApiKey || process.env.BREVO_API_KEY)?.trim();
@@ -49,9 +51,10 @@ export async function sendEmail({
   if (brevoApiKey && !brevoApiKey.includes('<paste') && !brevoApiKey.includes('your_brevo')) {
     try {
       const startTime = Date.now();
-      console.log(`\n[EMAIL] Attempting send to ${to} (Subject: "${subject}")`);
-      console.log(`[EMAIL CONFIG] Sender: "${senderName}" <${senderEmail}> | Brevo Key Present: ${Boolean(brevoApiKey)} (Len: ${brevoApiKey?.length})`);
-      logger.info(`[Email Service] Attempting delivery via Brevo to ${to} (${subject})...`);
+      const cleanTo = to.trim().toLowerCase();
+      console.log(`\n${reqTag} Attempting send to ${cleanTo} (Subject: "${subject}")`);
+      console.log(`${reqTag} Sender: "${senderName}" <${senderEmail}> | Brevo Key Present: ${Boolean(brevoApiKey)} (Len: ${brevoApiKey?.length})`);
+      logger.info(`${reqTag} [Email Service] Attempting delivery via Brevo to ${cleanTo} (${subject})...`);
 
       const brevoPayload = {
         sender: {
@@ -60,7 +63,7 @@ export async function sendEmail({
         },
         to: [
           {
-            email: to.trim().toLowerCase()
+            email: cleanTo
           }
         ],
         subject: subject,
@@ -81,11 +84,11 @@ export async function sendEmail({
       const durationMs = Date.now() - startTime;
       const responseData = await response.json().catch(() => ({}));
 
-      console.log(`[BREVO HTTP STATUS] ${response.status} ${response.statusText} (${durationMs}ms)`);
-      console.log(`[BREVO RESPONSE DATA]`, JSON.stringify(responseData, null, 2));
+      console.log(`${reqTag} [BREVO HTTP STATUS] ${response.status} ${response.statusText} (${durationMs}ms)`);
+      console.log(`${reqTag} [BREVO RESPONSE DATA] to=${cleanTo}`, JSON.stringify(responseData));
 
       if (response.ok) {
-        logger.info(`✅ [Brevo Delivery SUCCESS in ${durationMs}ms] Message ID: ${responseData.messageId} delivered to ${to}`);
+        logger.info(`✅ ${reqTag} [Brevo Delivery SUCCESS in ${durationMs}ms] Message ID: ${responseData.messageId} delivered to ${cleanTo}`);
         return {
           success: true,
           provider: 'Brevo',
@@ -95,20 +98,20 @@ export async function sendEmail({
       }
 
       // Log specific diagnostic error on failure
-      logger.error(`❌ [Brevo Delivery Error ${response.status}]:`, JSON.stringify(responseData, null, 2));
+      logger.error(`❌ ${reqTag} [Brevo Delivery Error ${response.status}]:`, JSON.stringify(responseData, null, 2));
 
       if (response.status === 401) {
-        logger.warn('⚠️ [Brevo Auth Warning]: Invalid or expired BREVO_API_KEY. Please verify your Brevo API key in .env.');
+        logger.warn(`${reqTag} ⚠️ [Brevo Auth Warning]: Invalid or expired BREVO_API_KEY.`);
       } else if (response.status === 400 && responseData.message?.includes('sender')) {
-        logger.warn(`⚠️ [Brevo Sender Warning]: Sender email "${senderEmail}" may need verification in your Brevo account dashboard (Senders & IP).`);
+        logger.warn(`${reqTag} ⚠️ [Brevo Sender Warning]: Sender email "${senderEmail}" may need verification in Brevo dashboard.`);
       }
     } catch (apiErr) {
-      console.error(`❌ [BREVO EXCEPTION]:`, apiErr);
-      logger.error(`❌ [Brevo Exception]:`, apiErr.message);
+      console.error(`❌ ${reqTag} [BREVO EXCEPTION]:`, apiErr);
+      logger.error(`❌ ${reqTag} [Brevo Exception]:`, apiErr.message);
     }
   } else {
-    console.warn(`[EMAIL WARNING] No active Brevo API key configured in env/config.`);
-    logger.info(`[Email Service] No active Brevo API key configured in .env.`);
+    console.warn(`${reqTag} [EMAIL WARNING] No active Brevo API key configured in env/config.`);
+    logger.info(`${reqTag} [Email Service] No active Brevo API key configured in .env.`);
   }
 
   // 2. Secondary Fallback Method: Nodemailer SMTP (if configured)
@@ -371,7 +374,7 @@ export async function sendDecisionNotification({ application, decision, customNo
 /**
  * Sends a 6-digit OTP verification email for two-factor authentication
  */
-export async function sendOtpEmail({ recipientEmail, recipientName = 'Underwriter', otpCode, expiresMinutes = 5 }) {
+export async function sendOtpEmail({ recipientEmail, recipientName = 'Underwriter', otpCode, expiresMinutes = 5, requestId }) {
   const subject = `Your Verdika Login Verification Code: ${otpCode}`;
 
   const html = `
@@ -428,9 +431,10 @@ If you did not initiate this login, please secure your account immediately.
 ==========================================
   `.trim();
 
+  const reqTag = requestId ? `[${requestId}]` : '';
   // Highlighted Dev Mode Console Log
   console.log('\n======================================================');
-  console.log(`🔑 [AUTH 2FA] DEV MODE - OTP: ${otpCode} (Recipient: ${recipientEmail})`);
+  console.log(`🔑 ${reqTag} [AUTH 2FA] DEV MODE - OTP: ${otpCode} (Recipient: ${recipientEmail})`);
   console.log('======================================================\n');
 
   const result = await sendEmail({
@@ -438,7 +442,8 @@ If you did not initiate this login, please secure your account immediately.
     subject,
     html,
     text,
-    fromName: 'Verdika Security'
+    fromName: 'Verdika Security',
+    requestId
   });
 
   return { success: result.success, otpCode, provider: result.provider };

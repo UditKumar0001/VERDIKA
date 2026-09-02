@@ -315,26 +315,25 @@ router.post('/login', authLimiter, async (req, res) => {
     }
 
     const { email, password } = req.body;
+    const requestId = crypto.randomUUID().slice(0, 8);
+    const cleanEmail = String(email || '').trim().toLowerCase();
 
-    const user = await User.findByEmail(email);
-    console.log('\n[LOGIN ATTEMPT DIAGNOSTICS]');
-    console.log('Searching for email:', email);
-    console.log('User record found?:', Boolean(user));
-    if (user) {
-      console.log('User ID:', user.id);
-      console.log('User Role:', user.role);
-    }
+    console.log(`\n[${requestId}] step 1: credentials submitted: ${cleanEmail}`);
+
+    const user = await User.findByEmail(cleanEmail);
 
     if (!user) {
-      console.log('Login outcome: FAILED (User not found)');
+      console.log(`[${requestId}] step 2: user lookup failed: No user found for ${cleanEmail}`);
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    console.log(`[${requestId}] step 2: user looked up from DB: id=${user.id} | email=${user.email} | role=${user.role}`);
+
     const isMatch = await bcrypt.compare(password, user.passwordHash);
-    console.log('Password bcrypt.compare match boolean:', isMatch);
+    console.log(`[${requestId}] step 2b: password check: isMatch=${isMatch}`);
 
     if (!isMatch) {
-      console.log('Login outcome: FAILED (Password mismatch)');
+      console.log(`[${requestId}] step 2b: password mismatch for user: ${user.email}`);
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
@@ -342,53 +341,59 @@ router.post('/login', authLimiter, async (req, res) => {
     if (user.company_id && user.role !== 'super_admin') {
       const company = await Company.findById(user.company_id);
       if (company && company.status === 'removed') {
-        logger.warn(`[Auth Login Blocked] User ${user.email} attempted login for deactivated company: ${company.name}`);
+        logger.warn(`[${requestId}] [Auth Login Blocked] User ${user.email} attempted login for deactivated company: ${company.name}`);
         return res.status(403).json({
           error: 'This account has been deactivated. Contact Verdika support for details.'
         });
       }
     }
 
-    console.log('Login outcome: SUCCESS (Credentials verified)');
-    console.log('[LOGIN] Submitted identifier:', email, '| Authenticated user:', user.id, user.email, user.role, '| OTP will be sent to:', user.email);
-
-    // Generate 6-digit OTP and persist to SQLite database
+    // Generate 6-digit OTP
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    console.log(`[${requestId}] step 4: OTP generated: ${otpCode} for user id: ${user.id} (${user.email})`);
 
+    // Persist OTP to SQLite database
     await Otp.create({
       userId: user.id,
       email: user.email,
       otpCode,
       expiresMinutes: 5
     });
+    console.log(`[${requestId}] step 5: OTP stored in SQLite for user id: ${user.id}`);
 
     // Temporary signed challenge token for OTP verification
     const tempToken = jwt.sign(
       {
         id: user.id,
         email: user.email,
-        type: '2fa_pending'
+        role: user.role,
+        type: '2fa_pending',
+        requestId
       },
       config.jwtSecret,
       { expiresIn: '5m' }
     );
+    console.log(`[${requestId}] step 3: temp_token created with user id: ${user.id} | email: ${user.email}`);
 
     // Dispatch OTP via Email Service asynchronously (fire-and-forget so response is instant)
+    console.log(`[${requestId}] step 6: OTP email triggered to: ${user.email}`);
     sendOtpEmail({
       recipientEmail: user.email,
       recipientName: user.name || 'Underwriter',
       otpCode,
-      expiresMinutes: 5
+      expiresMinutes: 5,
+      requestId
     }).catch((emailErr) => {
-      logger.error(`[Auth 2FA Background Error] Failed to dispatch OTP email to ${user.email}:`, emailErr);
+      logger.error(`[${requestId}] [Auth 2FA Background Error] Failed to dispatch OTP email to ${user.email}:`, emailErr);
     });
 
-    logger.info(`[Auth 2FA] Credentials verified for ${user.email}. OTP dispatched asynchronously. Temporary token issued.`);
+    logger.info(`[${requestId}] Credentials verified for ${user.email}. OTP dispatched asynchronously.`);
 
     return res.json({
       require_otp: true,
       temp_token: tempToken,
       email: user.email,
+      request_id: requestId,
       message: "We've sent a 6-digit verification code to your registered email address."
     });
   } catch (error) {
@@ -423,28 +428,16 @@ router.post('/verify-otp', authLimiter, async (req, res) => {
     }
 
     const cleanInputOtp = String(otp || '').trim().replace(/\D/g, '');
+    const requestId = decoded.requestId || 'VERIFY';
+
+    console.log(`\n[${requestId}] step 7: verify-otp received: user id: ${decoded.id} | email: ${decoded.email} | otp: "${cleanInputOtp}"`);
 
     const result = await Otp.verifyAndConsume({
       userId: decoded.id,
       inputOtp: cleanInputOtp
     });
 
-    const verifyAttemptTime = new Date().toISOString();
-    console.log('\n======================================================');
-    console.log('[AUTH 2FA PERSISTENT VERIFY ATTEMPT]');
-    console.log('Server Boot Time:', SERVER_BOOT_TIME);
-    console.log('Verify Attempt Time:', verifyAttemptTime);
-    console.log('User Email:', decoded.email);
-    console.log('User ID:', decoded.id);
-    console.log('Client Submitted OTP:', `"${cleanInputOtp}" (Length: ${cleanInputOtp.length})`);
-    console.log('Verification Match Result:', result.valid);
-    if (result.matchedRecord) {
-      console.log('Matched Record Created At:', result.matchedRecord.created_at);
-      console.log('Total Active Codes in Window:', result.activeCount);
-    } else {
-      console.log('Active Codes in SQLite DB:', result.activeRecords?.map(o => `"${o.otp_code}"`));
-    }
-    console.log('======================================================\n');
+    console.log(`[${requestId}] step 7b: verify result: valid=${result.valid} | totalActive=${result.activeCount}`);
 
     if (!result.valid) {
       if (!result.activeRecords || result.activeRecords.length === 0) {
@@ -525,6 +518,9 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
     }
 
     const now = Date.now();
+    const requestId = decoded.requestId || crypto.randomUUID().slice(0, 8);
+    console.log(`\n[${requestId}] RESEND OTP: Initiated for user id: ${decoded.id} (${decoded.email})`);
+
     const latestOtp = await Otp.getLatestOtp(decoded.id);
 
     // Enforce 30-second cooldown
@@ -532,6 +528,7 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
       const createdMs = new Date(latestOtp.created_at).getTime();
       if (now - createdMs < 30000) {
         const remainingSeconds = Math.ceil((30000 - (now - createdMs)) / 1000);
+        console.log(`[${requestId}] RESEND OTP: Cooldown active (${remainingSeconds}s remaining)`);
         return res.status(429).json({
           error: `Please wait ${remainingSeconds}s before requesting a new code.`,
           remainingSeconds
@@ -545,6 +542,7 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
     }
 
     const newOtpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    console.log(`[${requestId}] RESEND OTP: Generated fresh code: ${newOtpCode} for ${user.email}`);
 
     await Otp.create({
       userId: user.id,
@@ -557,12 +555,13 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
       recipientEmail: user.email,
       recipientName: user.name || 'Underwriter',
       otpCode: newOtpCode,
-      expiresMinutes: 5
+      expiresMinutes: 5,
+      requestId
     }).catch((emailErr) => {
-      logger.error(`[Auth 2FA Background Error] Error resending OTP email to ${user.email}:`, emailErr);
+      logger.error(`[${requestId}] [Auth 2FA Background Error] Error resending OTP email to ${user.email}:`, emailErr);
     });
 
-    logger.info(`[Auth 2FA] Resent 2FA OTP code asynchronously to ${user.email}`);
+    logger.info(`[${requestId}] Resent 2FA OTP code asynchronously to ${user.email}`);
 
     return res.json({
       message: 'A new 6-digit verification code has been sent to your email.'

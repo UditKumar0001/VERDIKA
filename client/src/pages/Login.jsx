@@ -66,9 +66,13 @@ export default function Login() {
     }
 
     setIsSubmitting(true);
+    setTempToken('');
+    setOtpDigits(['', '', '', '', '', '']);
+
     try {
       const res = await login({ email, password });
       if (res && res.require_otp) {
+        console.log('[FRONTEND] temp_token received for this login:', res.temp_token, 'for email:', email);
         setTempToken(res.temp_token);
         setStep('otp');
         setOtpDigits(['', '', '', '', '', '']);
@@ -138,6 +142,7 @@ export default function Login() {
     }
 
     setIsVerifyingOtp(true);
+    console.log('[FRONTEND] calling verify-otp with temp_token:', tempToken, 'for email:', email, 'otp:', fullOtp);
     try {
       const verifyRes = await verifyOtp({
         temp_token: tempToken,
@@ -182,6 +187,8 @@ export default function Login() {
   };
 
   const handleDemoFill = (demoEmail, demoPassword) => {
+    setTempToken('');
+    setOtpDigits(['', '', '', '', '', '']);
     setEmail(demoEmail);
     setPassword(demoPassword);
     setError('');
@@ -382,9 +389,11 @@ export default function Login() {
                   type="button"
                   className="btn-back-login"
                   onClick={() => {
-                    setStep('credentials');
+                    setTempToken('');
+                    setOtpDigits(['', '', '', '', '', '']);
                     setError('');
                     setResendStatus('');
+                    setStep('credentials');
                   }}
                 >
                   ← Back to Login
@@ -462,10 +471,16 @@ export default function Login() {
               <div className="forgot-modal-actions">
                 <button
                   type="button"
-                  className="new-app-btn"
-                  onClick={() => setShowForgotModal(false)}
+                  className="btn-back-login"
+                  onClick={() => {
+                    setTempToken('');
+                    setOtpDigits(['', '', '', '', '', '']);
+                    setError('');
+                    setResendStatus('');
+                    setStep('credentials');
+                  }}
                 >
-                  Back to Sign In
+                  ← Back to Sign In
                 </button>
               </div>
             )}
