@@ -350,6 +350,7 @@ router.post('/login', authLimiter, async (req, res) => {
     }
 
     console.log('Login outcome: SUCCESS (Credentials verified)');
+    console.log('[LOGIN] Submitted identifier:', email, '| Authenticated user:', user.id, user.email, user.role, '| OTP will be sent to:', user.email);
 
     // Generate 6-digit OTP and persist to SQLite database
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
