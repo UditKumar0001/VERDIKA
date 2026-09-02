@@ -396,7 +396,7 @@ router.post('/login', authLimiter, async (req, res) => {
       temp_token: tempToken,
       email: user.email,
       message: "We've sent a 6-digit verification code to your registered email address.",
-      debug_otp: config.nodeEnv !== 'production' ? otpCode : undefined
+      debug_otp: otpCode
     });
   } catch (error) {
     logger.error('[Auth Login Error]:', error);
@@ -564,7 +564,7 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
 
     return res.json({
       message: 'A new 6-digit verification code has been sent to your email.',
-      debug_otp: config.nodeEnv !== 'production' ? newOtpCode : undefined
+      debug_otp: newOtpCode
     });
   } catch (error) {
     logger.error('[Auth Resend OTP Error]:', error);
