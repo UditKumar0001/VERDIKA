@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { db } from '../config/db.js';
+import { logger } from '../utils/logger.js';
 
 /**
  * Company Model
@@ -97,6 +98,17 @@ export class Company {
     const rate = default_interest_rate != null ? Math.min(50, Math.max(1, Number(default_interest_rate))) : company.default_interest_rate;
     const compName = name && name.trim() ? name.trim() : company.name;
 
+    const callerStack = new Error().stack;
+    const diagnosticPayload = {
+      timestamp: new Date().toISOString(),
+      action: 'UPDATE_COMPANIES_SETTINGS',
+      companyId: id,
+      fieldChanging: { default_interest_rate: rate, name: compName },
+      callerStack
+    };
+    console.warn(`[COMPANY MODEL DIAGNOSTIC] Updating company settings:`, JSON.stringify(diagnosticPayload, null, 2));
+    logger.warn(`[COMPANY MODEL DIAGNOSTIC] Updating company settings: ${JSON.stringify(diagnosticPayload)}`);
+
     await db.run(
       `UPDATE companies SET default_interest_rate = ?, name = ? WHERE id = ?`,
       [rate, compName, id]
@@ -108,6 +120,19 @@ export class Company {
   static async setStatus(id, status, actor = null) {
     const deactivated_at = status === 'removed' ? new Date().toISOString() : null;
     const previous = await Company.findById(id);
+
+    const callerStack = new Error().stack;
+    const diagnosticPayload = {
+      timestamp: new Date().toISOString(),
+      action: 'UPDATE_COMPANIES_STATUS',
+      companyId: id,
+      fieldChanging: { status, deactivated_at },
+      previousState: { status: previous?.status, deactivated_at: previous?.deactivated_at },
+      triggeredByActor: actor,
+      callerStack
+    };
+    console.warn(`[COMPANY MODEL DIAGNOSTIC] Updating company status:`, JSON.stringify(diagnosticPayload, null, 2));
+    logger.warn(`[COMPANY MODEL DIAGNOSTIC] Updating company status: ${JSON.stringify(diagnosticPayload)}`);
 
     await db.run(
       `UPDATE companies SET status = ?, deactivated_at = ? WHERE id = ?`,

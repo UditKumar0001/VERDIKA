@@ -104,10 +104,11 @@ export default function SuperAdminDashboard() {
       setCompanies(list);
       setError(null);
 
-      const targetSlug = searchParams.get('deactivate');
-      if (targetSlug && list.length > 0) {
-        const target = list.find((c) => c.slug === targetSlug || c.id === targetSlug) || list[0];
-        setSelectedDeactCompany(target);
+      // Clean up any stale deactivate param from URL so it never auto-triggers
+      if (searchParams.has('deactivate')) {
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete('deactivate');
+        setSearchParams(nextParams, { replace: true });
       }
     } catch (err) {
       setError(err.message || 'Failed to retrieve finance companies.');
@@ -220,12 +221,21 @@ export default function SuperAdminDashboard() {
   // Action: Deactivate Company
   const handleConfirmDeactivation = async () => {
     if (!selectedDeactCompany) return;
+    const targetCompany = selectedDeactCompany;
+    setSelectedDeactCompany(null); // Close modal immediately to prevent duplicate requests
+
     try {
       setIsProcessingDeact(true);
       setError(null);
-      await deactivateCompany(selectedDeactCompany.id);
-      setActionSuccess(`Successfully deactivated "${selectedDeactCompany.name}". The company and its underwriters are now blocked from accessing the platform.`);
-      setSelectedDeactCompany(null);
+      await deactivateCompany(targetCompany.id);
+      setActionSuccess(`Successfully deactivated "${targetCompany.name}". The company and its underwriters are now blocked from accessing the platform.`);
+
+      if (searchParams.has('deactivate')) {
+        const nextParams = new URLSearchParams(searchParams);
+        nextParams.delete('deactivate');
+        setSearchParams(nextParams, { replace: true });
+      }
+
       await fetchCompaniesList();
       await fetchCompanyAdminsList();
     } catch (err) {
@@ -752,7 +762,10 @@ export default function SuperAdminDashboard() {
                                   <button
                                     type="button"
                                     className="btn-table-restore"
-                                    onClick={() => handleReactivateCompany(company)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleReactivateCompany(company);
+                                    }}
                                     title="Restore company access"
                                   >
                                     Reactivate
@@ -761,7 +774,10 @@ export default function SuperAdminDashboard() {
                                   <button
                                     type="button"
                                     className="btn-table-remove"
-                                    onClick={() => setSelectedDeactCompany(company)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedDeactCompany(company);
+                                    }}
                                     title="Deactivate company from platform"
                                   >
                                     Deactivate

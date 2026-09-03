@@ -40,6 +40,20 @@ function toPgQuery(sql, params = []) {
  */
 export const db = {
   run: async (sql, params = []) => {
+    const upper = (sql || '').toUpperCase();
+    if (upper.includes('COMPANIES') && (upper.includes('UPDATE') || upper.includes('DELETE'))) {
+      const callerStack = new Error().stack;
+      const logPayload = {
+        timestamp: new Date().toISOString(),
+        type: 'DIAGNOSTIC_INTERCEPTOR_COMPANIES_WRITE',
+        query: sql,
+        params,
+        stack: callerStack
+      };
+      console.warn('[DIAGNOSTIC WARNING] Intercepted UPDATE/DELETE on companies table:', JSON.stringify(logPayload, null, 2));
+      logger.warn(`[DIAGNOSTIC WARNING] Intercepted UPDATE/DELETE on companies table: ${JSON.stringify(logPayload)}`);
+    }
+
     if (isPostgres && pgPool) {
       const { text, values } = toPgQuery(sql, params);
       const res = await pgPool.query(text, values);
