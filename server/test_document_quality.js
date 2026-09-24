@@ -38,7 +38,7 @@ async function runQualityTests() {
   const clearApp = {
     business_name: 'Aura Logistics Pvt Ltd',
     business_category: 'electronics',
-    gstin: '27AAACG1234F1Z5',
+    gstin: '27AAACG1234F1Z4',
     business_age_months: 36,
     bank_details: validBankDetails,
     documents: {
@@ -74,7 +74,7 @@ async function runQualityTests() {
   const lowResApp = {
     business_name: 'Aura Logistics Pvt Ltd',
     business_category: 'electronics',
-    gstin: '27AAACG1234F1Z5',
+    gstin: '27AAACG1234F1Z4',
     business_age_months: 36,
     bank_details: validBankDetails,
     documents: {
@@ -108,7 +108,7 @@ async function runQualityTests() {
   const missingDocApp = {
     business_name: 'Aura Logistics Pvt Ltd',
     business_category: 'electronics',
-    gstin: '27AAACG1234F1Z5',
+    gstin: '27AAACG1234F1Z4',
     business_age_months: 36,
     bank_details: validBankDetails,
     documents: {

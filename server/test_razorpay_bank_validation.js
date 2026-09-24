@@ -49,7 +49,7 @@ async function testRazorpayBankValidation() {
   const failedPipelineResult = await agentPipeline.execute({
     business_name: 'Test Merchant Failed Bank',
     business_category: 'electronics',
-    gstin: '27AAACG1234F1Z5',
+    gstin: '27AAACG1234F1Z4',
     business_age_months: 36,
     bank_details: {
       account_holder: 'Test Merchant Failed Bank',
@@ -89,7 +89,7 @@ async function testRazorpayBankValidation() {
   const verifiedPipelineResult = await agentPipeline.execute({
     business_name: 'Sunrise Digital Solutions Pvt Ltd',
     business_category: 'electronics',
-    gstin: '27AAACG1234F1Z5',
+    gstin: '27AAACG1234F1Z4',
     business_age_months: 48,
     bank_details: {
       account_holder: 'Sunrise Digital Solutions Pvt Ltd',

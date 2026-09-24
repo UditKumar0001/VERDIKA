@@ -1,4 +1,5 @@
 import { BaseAgent } from './BaseAgent.js';
+import { validateGSTIN } from '../utils/validators.js';
 
 /**
  * DocumentVerificationAgent
@@ -222,15 +223,18 @@ export class DocumentVerificationAgent extends BaseAgent {
       }
     }
 
-    const gstinRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[Zz][0-9A-Z]{1}$/;
-    if (gstin && !gstinRegex.test(gstin)) {
-      formatIssues.push('GSTIN format invalid');
-      reasonCodes.push({
-        code: 'DOC_INVALID_GSTIN_FORMAT',
-        description: 'GSTIN format does not match standard 15-character pattern',
-        weight: 0.10
-      });
-      isFormatValid = false;
+    if (gstin) {
+      const gstinVal = validateGSTIN(gstin);
+      if (!gstinVal.valid) {
+        const isChecksumFail = gstinVal.error === 'GSTIN checksum failed';
+        formatIssues.push(isChecksumFail ? 'GSTIN checksum failed' : 'GSTIN format invalid');
+        reasonCodes.push({
+          code: isChecksumFail ? 'DOC_GSTIN_CHECKSUM_FAILED' : 'DOC_INVALID_GSTIN_FORMAT',
+          description: gstinVal.reason || gstinVal.error,
+          weight: 0.15
+        });
+        isFormatValid = false;
+      }
     }
 
     // Bank Verification (Razorpay Penny-Drop) Check
@@ -320,7 +324,7 @@ export class DocumentVerificationAgent extends BaseAgent {
         format: {
           panValid: Boolean(panToValidate && panRegex.test(panToValidate)),
           ifscValid: Boolean(bankDetails.ifsc && ifscRegex.test(bankDetails.ifsc.trim().toUpperCase())),
-          gstinValid: Boolean(gstin && gstinRegex.test(gstin)),
+          gstinValid: Boolean(gstin && validateGSTIN(gstin).valid),
           fileTypesValid: isFormatValid
         }
       }

@@ -88,3 +88,95 @@ export const validateApplicationInput = (data = {}) => {
     errors
   };
 };
+
+/**
+ * GSTIN Format & Mod-36 Checksum Validator
+ */
+export const GSTIN_REGEX = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+const CODE_POINT_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+export const calculateGSTINChecksum = (gstin14) => {
+  if (!gstin14 || gstin14.length < 14) return null;
+  const clean = gstin14.slice(0, 14).toUpperCase();
+  const mod = 36;
+  let total = 0;
+  let factor = 1;
+
+  for (let i = 0; i < 14; i++) {
+    const char = clean[i];
+    const codePoint = CODE_POINT_CHARS.indexOf(char);
+    if (codePoint === -1) return null;
+
+    let digit = codePoint * factor;
+    digit = Math.floor(digit / mod) + (digit % mod);
+    total += digit;
+
+    factor = factor === 1 ? 2 : 1;
+  }
+
+  const remainder = total % mod;
+  const checkCode = (mod - remainder) % mod;
+  return CODE_POINT_CHARS[checkCode];
+};
+
+export const validateGSTIN = (rawGstin) => {
+  if (!rawGstin || typeof rawGstin !== 'string') {
+    return {
+      valid: false,
+      error: 'GSTIN is required'
+    };
+  }
+
+  const clean = rawGstin.trim().toUpperCase();
+
+  // 1. Length check
+  if (clean.length !== 15) {
+    return {
+      valid: false,
+      error: 'Invalid GSTIN format',
+      reason: `GSTIN must be exactly 15 characters (received ${clean.length})`
+    };
+  }
+
+  // 2. Standard Regex pattern enforcement
+  if (!GSTIN_REGEX.test(clean)) {
+    return {
+      valid: false,
+      error: 'Invalid GSTIN format',
+      reason: 'GSTIN pattern does not match standard 15-character specification'
+    };
+  }
+
+  // 3. State Code Check (01-38, 97, 99)
+  const stateCode = parseInt(clean.slice(0, 2), 10);
+  if (isNaN(stateCode) || stateCode < 1 || (stateCode > 38 && stateCode !== 97 && stateCode !== 99)) {
+    return {
+      valid: false,
+      error: 'Invalid GSTIN format',
+      reason: `State code '${clean.slice(0, 2)}' is outside valid jurisdiction codes (01-38, 97)`
+    };
+  }
+
+  // 4. Mod-36 Checksum Verification
+  const expectedChecksum = calculateGSTINChecksum(clean.slice(0, 14));
+  const actualChecksum = clean[14];
+
+  if (!expectedChecksum || actualChecksum !== expectedChecksum) {
+    return {
+      valid: false,
+      error: 'GSTIN checksum failed',
+      reason: `Checksum digit mismatch (expected '${expectedChecksum}', got '${actualChecksum}')`,
+      expectedChecksum,
+      actualChecksum
+    };
+  }
+
+  return {
+    valid: true,
+    gstin: clean,
+    stateCode: clean.slice(0, 2),
+    pan: clean.slice(2, 12),
+    entityCode: clean[12],
+    checksum: actualChecksum
+  };
+};

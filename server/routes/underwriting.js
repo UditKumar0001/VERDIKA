@@ -8,7 +8,7 @@ import { Notification } from '../models/Notification.js';
 import { agentPipeline } from '../services/agentPipeline.js';
 import { validateBankAccountRazorpay } from '../services/razorpayBankValidationService.js';
 import { sendDecisionNotification } from '../services/notificationService.js';
-import { validateApplicationInput } from '../utils/validators.js';
+import { validateApplicationInput, validateGSTIN } from '../utils/validators.js';
 import { logger } from '../utils/logger.js';
 
 const router = Router();
@@ -176,6 +176,17 @@ router.post('/apply-public/:companySlug', async (req, res) => {
       return res.status(400).json({ error: 'Invalid request payload.' });
     }
 
+    // Validate GSTIN format & Mod-36 checksum if provided
+    if (req.body.gstin) {
+      const gstinVal = validateGSTIN(req.body.gstin);
+      if (!gstinVal.valid) {
+        return res.status(400).json({
+          error: gstinVal.error,
+          reason: gstinVal.reason
+        });
+      }
+    }
+
     // Create Application tagged with company.id
     const appData = {
       company_id: company.id,
@@ -255,6 +266,17 @@ router.post('/apply', requireAuth, async (req, res) => {
   try {
     if (!req.body || typeof req.body !== 'object') {
       return res.status(400).json({ error: 'Invalid request payload' });
+    }
+
+    // Validate GSTIN format & Mod-36 checksum if provided
+    if (req.body.gstin) {
+      const gstinVal = validateGSTIN(req.body.gstin);
+      if (!gstinVal.valid) {
+        return res.status(400).json({
+          error: gstinVal.error,
+          reason: gstinVal.reason
+        });
+      }
     }
 
     let targetCompanyId = req.user.company_id || null;

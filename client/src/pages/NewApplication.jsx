@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { submitApplyApplication, validateBankAccountApi } from '../api/applicationApi';
 import { submitPublicApplication } from '../api/companyApi';
+import { validateGSTIN, GSTIN_STATE_CODES } from '../utils/gstinValidator';
 
 // Pre-packaged realistic sample datasets for instant demo testing
 const SAMPLE_PRESETS = {
@@ -9,7 +10,7 @@ const SAMPLE_PRESETS = {
     label: 'Healthy Merchant (Auto-Approve Demo)',
     business_name: 'Sunrise Digital Solutions Pvt Ltd',
     business_category: 'electronics',
-    gstin: '27AAACG1234F1Z5',
+    gstin: '27AAACG1234F1Z4',
     registration_date: '2022-03-15',
     business_age_months: 48,
     loan_amount: 500000,
@@ -69,7 +70,7 @@ const SAMPLE_PRESETS = {
     label: 'High Risk Merchant (Auto-Reject Demo)',
     business_name: 'Metro Wholesale Apparel Traders',
     business_category: 'apparel',
-    gstin: '27AABCM5678H1Z2',
+    gstin: '27AABCM5678H1Z5',
     registration_date: '2026-06-01',
     business_age_months: 2,
     loan_amount: 3000000,
@@ -157,7 +158,7 @@ const SAMPLE_PRESETS = {
     label: 'Borderline Case (Route to Human Demo)',
     business_name: 'Kalyan Supermart & Provision',
     business_category: 'grocery',
-    gstin: '27AABCK9012K1Z8',
+    gstin: '27AABCK9012K1ZG',
     registration_date: '2024-01-20',
     business_age_months: 28,
     loan_amount: 1500000,
@@ -315,10 +316,48 @@ export default function NewApplication({ publicCompany = null }) {
   // Result state after submission
   const [result, setResult] = useState(null);
 
+  // GSTIN Validation State
+  const [gstinValidation, setGstinValidation] = useState({
+    error: null,
+    stateName: null,
+    isValid: false
+  });
+
   // --- Step 1 Handlers ---
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'gstin') {
+      const upperVal = value.toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 15);
+      setFormData((prev) => ({ ...prev, gstin: upperVal }));
+
+      if (!upperVal) {
+        setGstinValidation({ error: null, stateName: null, isValid: false });
+      } else if (upperVal.length === 15) {
+        const valResult = validateGSTIN(upperVal);
+        setGstinValidation({
+          error: valResult.valid ? null : valResult.error,
+          stateName: valResult.valid ? valResult.stateName : null,
+          isValid: valResult.valid
+        });
+      } else {
+        setGstinValidation({ error: null, stateName: null, isValid: false });
+      }
+      return;
+    }
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleGstinBlur = () => {
+    if (!formData.gstin.trim()) {
+      setGstinValidation({ error: 'GSTIN is required', stateName: null, isValid: false });
+      return;
+    }
+    const valResult = validateGSTIN(formData.gstin);
+    setGstinValidation({
+      error: valResult.valid ? null : valResult.error,
+      stateName: valResult.valid ? valResult.stateName : null,
+      isValid: valResult.valid
+    });
   };
 
   // --- Step 2 Bank Details Handlers ---
@@ -598,6 +637,18 @@ export default function NewApplication({ publicCompany = null }) {
     setError(null);
     setBankValidationErrors({});
     setDocumentErrors({});
+
+    // Validate preset GSTIN
+    if (preset.gstin) {
+      const valResult = validateGSTIN(preset.gstin);
+      setGstinValidation({
+        error: valResult.valid ? null : valResult.error,
+        stateName: valResult.valid ? valResult.stateName : null,
+        isValid: valResult.valid
+      });
+    } else {
+      setGstinValidation({ error: null, stateName: null, isValid: false });
+    }
   };
 
   // Derived Computed Properties for Category, Tenure and Interest Rate
@@ -623,6 +674,31 @@ export default function NewApplication({ publicCompany = null }) {
       setError('Please specify your custom business category.');
       return false;
     }
+
+    // GSTIN Validation: Format & Mod-36 Checksum
+    if (!formData.gstin.trim()) {
+      setGstinValidation({ error: 'GSTIN is required', stateName: null, isValid: false });
+      setError('Please provide a valid 15-character GSTIN.');
+      return false;
+    }
+
+    const gstinResult = validateGSTIN(formData.gstin);
+    if (!gstinResult.valid) {
+      setGstinValidation({
+        error: gstinResult.error,
+        stateName: null,
+        isValid: false
+      });
+      setError(gstinResult.error);
+      return false;
+    } else {
+      setGstinValidation({
+        error: null,
+        stateName: gstinResult.stateName,
+        isValid: true
+      });
+    }
+
     if (isCustomTenure) {
       const numTenure = Number(formData.custom_tenure_months);
       if (!formData.custom_tenure_months || isNaN(numTenure) || numTenure < 3 || numTenure > 84) {
@@ -714,7 +790,7 @@ export default function NewApplication({ publicCompany = null }) {
       const payload = {
         business_name: formData.business_name,
         business_category: effectiveCategory,
-        gstin: formData.gstin || '27ABCDE1234F1Z5',
+        gstin: formData.gstin.trim().toUpperCase(),
         registration_date: formData.registration_date || '2024-01-01',
         business_age_months: Number(formData.business_age_months) || 24,
         loan_amount: Number(formData.loan_amount) || 500000,
@@ -1105,16 +1181,62 @@ export default function NewApplication({ publicCompany = null }) {
               )}
 
               <div className="form-group">
-                <label htmlFor="gstin">GSTIN (15 Alphanumeric)</label>
-                <input
-                  id="gstin"
-                  name="gstin"
-                  type="text"
-                  maxLength={15}
-                  placeholder="e.g. 27ABCDE1234F1Z5"
-                  value={formData.gstin}
-                  onChange={handleInputChange}
-                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                  <label htmlFor="gstin" style={{ marginBottom: 0 }}>GSTIN (15 Alphanumeric) *</label>
+                  {gstinValidation.isValid && (
+                    <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      ✓ {gstinValidation.stateName} (Checksum Verified)
+                    </span>
+                  )}
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    id="gstin"
+                    name="gstin"
+                    type="text"
+                    maxLength={15}
+                    placeholder="e.g. 27AAACT2727Q1ZW"
+                    value={formData.gstin}
+                    onChange={handleInputChange}
+                    onBlur={handleGstinBlur}
+                    style={{
+                      fontFamily: 'monospace',
+                      letterSpacing: '1px',
+                      textTransform: 'uppercase',
+                      borderColor: gstinValidation.error
+                        ? '#ef4444'
+                        : gstinValidation.isValid
+                        ? '#10b981'
+                        : undefined
+                    }}
+                  />
+                  {gstinValidation.isValid && (
+                    <span style={{ position: 'absolute', right: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: '#10b981', fontWeight: 'bold' }}>
+                      ✓
+                    </span>
+                  )}
+                </div>
+                {gstinValidation.error && (
+                  <div
+                    id="gstin-error"
+                    className="field-error"
+                    style={{
+                      color: '#ef4444',
+                      fontSize: '0.8rem',
+                      marginTop: '0.35rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.35rem',
+                      fontWeight: '500'
+                    }}
+                  >
+                    <span>⚠️</span>
+                    <span>{gstinValidation.error}</span>
+                  </div>
+                )}
+                <span className="field-hint" style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Format: 2-digit state code + 10-char PAN + 1 entity code + 'Z' + 1 checksum digit (Mod-36 validated)
+                </span>
               </div>
 
               <div className="form-group">
@@ -1833,7 +1955,12 @@ export default function NewApplication({ publicCompany = null }) {
                 </div>
                 <div className="review-item">
                   <span className="review-item-label">GSTIN</span>
-                  <span className="review-item-value font-mono">{formData.gstin || '27ABCDE1234F1Z5'}</span>
+                  <span className="review-item-value font-mono" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    {formData.gstin}
+                    {gstinValidation.isValid && (
+                      <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 'bold' }}>✓ Verified</span>
+                    )}
+                  </span>
                 </div>
                 <div className="review-item">
                   <span className="review-item-label">Operating Age</span>

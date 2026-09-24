@@ -32,7 +32,7 @@ async function runTests() {
   const completeMerchant = {
     business_name: 'Apex Horizon Technologies Pvt Ltd',
     business_category: 'electronics',
-    gstin: '27AAACG1234F1Z5',
+    gstin: '27AAACG1234F1Z4',
     registration_date: '2022-03-15',
     business_age_months: 48,
     bank_details: {
@@ -41,7 +41,9 @@ async function runTests() {
       masked_account_number: 'XXXXXXXXXX9103',
       ifsc: 'HDFC0000060',
       bank_name: 'HDFC Bank',
-      branch: 'Fort, Mumbai'
+      branch: 'Fort, Mumbai',
+      ifsc_verified: true,
+      bank_verification: { status: 'Verified', registeredName: 'Apex Horizon Technologies Pvt Ltd' }
     },
     documents: {
       gst_certificate: { name: 'Apex_GST_Certificate.pdf', verified: true },
@@ -156,6 +158,54 @@ async function runTests() {
 
   console.log(`[CHECK] Document Agent Status is 'Invalid Format'? ${result3.doc_result?.status === 'Invalid Format' ? 'PASS' : 'FAIL'}`);
   console.log(`[CHECK] Decision forced to 'route_to_human'? ${result3.decision === 'route_to_human' ? 'PASS' : 'FAIL'}\n`);
+
+  // =================================================================
+  // TEST CASE 4: Well-formatted but Fake GSTIN (Checksum Failure)
+  // =================================================================
+  console.log('--- TEST CASE 4: Well-formatted GSTIN with Checksum Digit Failure ---');
+  const checksumFailMerchant = {
+    business_name: 'Checksum Mismatch Traders',
+    business_category: 'electronics',
+    gstin: '27AAACG1234F1Z5', // Valid 15-char structure, but 15th digit is '5' instead of '4'!
+    registration_date: '2022-03-15',
+    business_age_months: 48,
+    bank_details: {
+      account_holder: 'Checksum Mismatch Traders',
+      account_number: '50200084729103',
+      masked_account_number: 'XXXXXXXXXX9103',
+      ifsc: 'HDFC0000060',
+      bank_name: 'HDFC Bank',
+      branch: 'Fort, Mumbai',
+      ifsc_verified: true,
+      bank_verification: { status: 'Verified', registeredName: 'Checksum Mismatch Traders' }
+    },
+    documents: {
+      gst_certificate: { name: 'GST.pdf', verified: true },
+      pan_card: { name: 'PAN.png', verified: true },
+      bank_statement: { name: 'Statement.pdf', verified: true }
+    },
+    transaction_history: healthyTransactionHistory
+  };
+
+  const result4 = await agentPipeline.execute(checksumFailMerchant);
+  console.log(`Decision: ${result4.decision}`);
+  console.log(`Document Agent Status: ${result4.doc_result?.status}`);
+  console.log('Reason Codes:');
+  result4.risk_result?.reasonCodes?.forEach((rc) => {
+    console.log(` - [${rc.code || rc.factor}]: ${rc.description || rc.details}`);
+  });
+
+  const hasChecksumFailCode = result4.risk_result?.reasonCodes?.some(
+    (rc) => rc.code === 'DOC_GSTIN_CHECKSUM_FAILED' || rc.description?.includes('Checksum digit mismatch')
+  );
+
+  console.log(`[CHECK] Contains 'DOC_GSTIN_CHECKSUM_FAILED'? ${hasChecksumFailCode ? 'PASS' : 'FAIL'}`);
+  console.log(`[CHECK] Document Agent Status is 'Invalid Format'? ${result4.doc_result?.status === 'Invalid Format' ? 'PASS' : 'FAIL'}`);
+  console.log(`[CHECK] Decision forced to 'route_to_human'? ${result4.decision === 'route_to_human' ? 'PASS' : 'FAIL'}\n`);
+
+  if (!hasChecksumFailCode || result4.doc_result?.status !== 'Invalid Format') {
+    throw new Error('Test Case 4 Failed: Fake GSTIN checksum failure was not detected.');
+  }
 
   console.log('================================================================');
   console.log('ALL DOCUMENT VERIFICATION AGENT TESTS PASSED SUCCESSFULLY!');
