@@ -15,7 +15,7 @@ const router = Router();
 // GET /api/admin/metrics
 router.get('/metrics', requireAuth, async (req, res) => {
   try {
-    const totalAppsRow = await db.get('SELECT COUNT(*) as count, AVG(risk_score) as avgRisk FROM applications');
+    const totalAppsRow = await db.get('SELECT COUNT(*) as count FROM applications');
     const statusRows = await db.all('SELECT status, COUNT(*) as count FROM applications GROUP BY status');
     const auditRow = await db.get('SELECT COUNT(*) as count, AVG(execution_time_ms) as avgLatency FROM audit_logs');
 

@@ -120,7 +120,7 @@ export const db = {
 /**
  * Initialize Schema & Run Migrations
  */
-const initSchema = async () => {
+export const initSchema = async (targetPool = null) => {
   const schemaSql = `
     CREATE TABLE IF NOT EXISTS companies (
       id TEXT PRIMARY KEY,
@@ -211,10 +211,39 @@ const initSchema = async () => {
     );
   `;
 
+  if (targetPool) {
+    await targetPool.query(schemaSql);
+    try {
+      await targetPool.query(`
+        ALTER TABLE companies ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+        ALTER TABLE companies ADD COLUMN IF NOT EXISTS deactivated_at TIMESTAMP;
+        ALTER TABLE companies ADD COLUMN IF NOT EXISTS default_interest_rate REAL NOT NULL DEFAULT 14.0;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS company_id TEXT;
+        ALTER TABLE applications ADD COLUMN IF NOT EXISTS company_id TEXT;
+      `);
+    } catch (pgAlterErr) {
+      logger.warn('[DB Migration] PostgreSQL column upgrade check:', pgAlterErr.message);
+    }
+    return;
+  }
+
   await db.exec(schemaSql);
 
-  // SQLite-specific PRAGMA migrations
-  if (!isPostgres) {
+  // PostgreSQL column check when running via db instance
+  if (isPostgres) {
+    try {
+      await db.exec(`
+        ALTER TABLE companies ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
+        ALTER TABLE companies ADD COLUMN IF NOT EXISTS deactivated_at TIMESTAMP;
+        ALTER TABLE companies ADD COLUMN IF NOT EXISTS default_interest_rate REAL NOT NULL DEFAULT 14.0;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS company_id TEXT;
+        ALTER TABLE applications ADD COLUMN IF NOT EXISTS company_id TEXT;
+      `);
+    } catch (pgAlterErr) {
+      logger.warn('[DB Migration] PostgreSQL column upgrade check:', pgAlterErr.message);
+    }
+  } else {
+    // SQLite-specific PRAGMA migrations
     try {
       const compColumns = await db.all(`PRAGMA table_info(companies)`);
       if (!compColumns.some((c) => c.name === 'status')) {
@@ -253,7 +282,7 @@ const initSchema = async () => {
 /**
  * Seed Default System Data (Users & Initial Applications)
  */
-const seedDefaultData = async () => {
+export const seedDefaultData = async () => {
   try {
     // 0. Seed Platform Super Admin Account (Global Platform Owner)
     const superAdminEmail = 'udit47656@gmail.com';
@@ -286,6 +315,17 @@ const seedDefaultData = async () => {
       );
       defaultCompany = { id: companyId, name: 'Verdika Capital', slug: 'verdika-capital' };
       logger.info('[DB Seed] Seeded default finance company (Verdika Capital, slug: verdika-capital)');
+    }
+
+    // 1b. Seed Institutional Finance Company: Bajaj Finance
+    let bajajCompany = await db.get('SELECT * FROM companies WHERE slug = ?', ['bajaj-finance']);
+    if (!bajajCompany) {
+      const bajajId = '5efc0158-2bb2-47da-8048-d6adafc3a9d5';
+      await db.run(
+        `INSERT INTO companies (id, name, slug, email, status, default_interest_rate) VALUES (?, ?, ?, ?, 'active', 14.0)`,
+        [bajajId, 'Bajaj Finance', 'bajaj-finance', 'udit12976@gmail.com']
+      );
+      logger.info('[DB Seed] Seeded institutional finance company (Bajaj Finance, slug: bajaj-finance)');
     }
 
     // 2. Seed Demo Underwriter

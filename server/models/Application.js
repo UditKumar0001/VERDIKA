@@ -152,9 +152,9 @@ export class Application {
       params.push(filters.status);
     }
 
-    // Keyword Search
+    // Keyword Search (Case-insensitive across SQLite and PostgreSQL)
     if (filters.search) {
-      conditions.push('(id LIKE ? OR applicant_message LIKE ? OR merchant_data LIKE ?)');
+      conditions.push('(LOWER(id) LIKE LOWER(?) OR LOWER(applicant_message) LIKE LOWER(?) OR LOWER(merchant_data) LIKE LOWER(?))');
       params.push(`%${filters.search}%`, `%${filters.search}%`, `%${filters.search}%`);
     }
 

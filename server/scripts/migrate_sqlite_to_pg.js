@@ -13,6 +13,7 @@ import pg from 'pg';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import { initSchema } from '../config/db.js';
 
 dotenv.config();
 
@@ -62,9 +63,14 @@ async function runMigration() {
     await pgPool.query('SELECT NOW()');
     console.log('✅ PostgreSQL connection verified.');
 
+    // 0. Ensure Schema & All Tables / Columns Exist in Target PostgreSQL
+    console.log('\n📦 Initializing PostgreSQL Schema & Tables...');
+    await initSchema(pgPool);
+    console.log('✅ PostgreSQL Schema initialized successfully.');
+
     // 1. Migrate Companies
     const companies = await sqliteAll('SELECT * FROM companies');
-    console.log(`Found ${companies.length} companies in SQLite.`);
+    console.log(`\n🏢 Found ${companies.length} companies in SQLite.`);
     for (const c of companies) {
       await pgPool.query(`
         INSERT INTO companies (id, name, slug, email, status, default_interest_rate, deactivated_at, created_at)
@@ -82,7 +88,7 @@ async function runMigration() {
 
     // 2. Migrate Users
     const users = await sqliteAll('SELECT * FROM users');
-    console.log(`Found ${users.length} users in SQLite.`);
+    console.log(`\n👥 Found ${users.length} users in SQLite.`);
     for (const u of users) {
       await pgPool.query(`
         INSERT INTO users (id, company_id, name, email, password_hash, role, created_at)
@@ -99,7 +105,7 @@ async function runMigration() {
 
     // 3. Migrate Applications
     const applications = await sqliteAll('SELECT * FROM applications');
-    console.log(`Found ${applications.length} applications in SQLite.`);
+    console.log(`\n📄 Found ${applications.length} applications in SQLite.`);
     for (const a of applications) {
       await pgPool.query(`
         INSERT INTO applications (id, company_id, user_id, merchant_data, features, risk_result, adversarial_result, decision, routing_reason, applicant_message, underwriter_summary, status, reviewer_id, reviewer_decision, created_at, updated_at)
@@ -115,7 +121,7 @@ async function runMigration() {
 
     // 4. Migrate Audit Logs
     const auditLogs = await sqliteAll('SELECT * FROM audit_logs');
-    console.log(`Found ${auditLogs.length} audit logs in SQLite.`);
+    console.log(`\n📋 Found ${auditLogs.length} audit logs in SQLite.`);
     for (const al of auditLogs) {
       await pgPool.query(`
         INSERT INTO audit_logs (id, application_id, agent_name, actor, input_snapshot, output_snapshot, confidence_score, execution_time_ms, summary, created_at)
@@ -127,7 +133,7 @@ async function runMigration() {
 
     // 5. Migrate Notifications
     const notifications = await sqliteAll('SELECT * FROM notifications');
-    console.log(`Found ${notifications.length} notifications in SQLite.`);
+    console.log(`\n🔔 Found ${notifications.length} notifications in SQLite.`);
     for (const n of notifications) {
       await pgPool.query(`
         INSERT INTO notifications (id, application_id, recipient_email, recipient_name, subject, decision, status, content_html, error, sent_at, created_at)
@@ -139,7 +145,7 @@ async function runMigration() {
 
     // 6. Migrate OTPs
     const otps = await sqliteAll('SELECT * FROM otps');
-    console.log(`Found ${otps.length} active OTP records in SQLite.`);
+    console.log(`\n🔑 Found ${otps.length} active OTP records in SQLite.`);
     for (const o of otps) {
       await pgPool.query(`
         INSERT INTO otps (id, user_id, email, otp_code, expires_at, created_at)
@@ -149,11 +155,43 @@ async function runMigration() {
     }
     console.log(`✅ Migrated ${otps.length} OTP records.`);
 
+    // 7. Migrate Company Invites
+    const companyInvites = await sqliteAll('SELECT * FROM company_invites');
+    console.log(`\n✉️ Found ${companyInvites.length} company invites in SQLite.`);
+    for (const ci of companyInvites) {
+      await pgPool.query(`
+        INSERT INTO company_invites (id, company_id, email, role, token, invited_by, status, expires_at, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ON CONFLICT (id) DO UPDATE SET
+          status = EXCLUDED.status,
+          role = EXCLUDED.role,
+          expires_at = EXCLUDED.expires_at
+      `, [ci.id, ci.company_id, ci.email, ci.role, ci.token, ci.invited_by, ci.status, ci.expires_at, ci.created_at]);
+    }
+    console.log(`✅ Migrated ${companyInvites.length} company invites.`);
+
+    // 8. Verification & Seed Data Audit
     console.log('\n================================================================');
-    console.log('🎉 ALL TABLES SUCCESSFULLY MIGRATED TO POSTGRESQL!');
+    console.log('🔍 VERIFYING SEED DATA IN POSTGRESQL');
+    console.log('================================================================');
+    const pgCompanies = await pgPool.query('SELECT name, slug, status FROM companies WHERE slug IN ($1, $2)', ['verdika-capital', 'bajaj-finance']);
+    console.log('Core Seed Companies in PostgreSQL:');
+    pgCompanies.rows.forEach(r => console.log(`  - ${r.name} (${r.slug}) [status: ${r.status}]`));
+
+    const totalPgComp = await pgPool.query('SELECT COUNT(*) as count FROM companies');
+    const totalPgUsers = await pgPool.query('SELECT COUNT(*) as count FROM users');
+    const totalPgApps = await pgPool.query('SELECT COUNT(*) as count FROM applications');
+    console.log(`\nTotal Records in PostgreSQL:`);
+    console.log(`  - Companies:    ${totalPgComp.rows[0].count}`);
+    console.log(`  - Users:        ${totalPgUsers.rows[0].count}`);
+    console.log(`  - Applications: ${totalPgApps.rows[0].count}`);
+
+    console.log('\n================================================================');
+    console.log('🎉 ALL TABLES SUCCESSFULLY MIGRATED AND VERIFIED IN POSTGRESQL!');
     console.log('================================================================\n');
   } catch (err) {
     console.error('❌ Migration error:', err);
+    process.exit(1);
   } finally {
     sqliteDb.close();
     await pgPool.end();
