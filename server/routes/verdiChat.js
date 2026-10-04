@@ -11,13 +11,17 @@ const router = Router();
  */
 router.post('/verdi-chat', async (req, res) => {
   try {
-    const { message, conversationHistory } = req.body || {};
+    const { message, conversationHistory, context, applicationContext } = req.body || {};
 
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
       return res.status(400).json({ error: 'Message cannot be empty.' });
     }
 
-    const reply = await generateVerdiChatResponse(message, conversationHistory || []);
+    const reply = await generateVerdiChatResponse(
+      message,
+      conversationHistory || [],
+      context || applicationContext || null
+    );
 
     return res.json({ reply });
   } catch (error) {

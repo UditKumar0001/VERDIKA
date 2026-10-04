@@ -1,7 +1,9 @@
+import fs from 'fs';
+import { PDFParse } from 'pdf-parse';
 import { logger } from '../utils/logger.js';
 
 /**
- * Fallback baseline dataset used when statement parsing fails
+ * Fallback baseline dataset used ONLY as an explicit last resort when statement parsing genuinely fails
  */
 export const SYNTHETIC_BASELINE_TRANSACTIONS = Array.from({ length: 30 }, (_, i) => ({
   date: new Date(2026, 0, 1 + i * 7).toISOString().split('T')[0],
@@ -29,9 +31,7 @@ export function extractTransactionsFromText(text = '') {
   const transactions = [];
 
   // Regex patterns for matching transaction lines
-  // Pattern 1: DD/MM/YYYY or DD-MM-YYYY Date at start or middle
   const dateRegex = /(\b\d{2}[/-]\d{2}[/-]\d{4}\b|\b\d{4}[/-]\d{2}[/-]\d{2}\b|\b\d{2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}\b)/i;
-  // Pattern 2: Currency / Decimal amounts e.g. 45,000.00 or 1250.00
   const amountRegex = /(\d{1,3}(?:,\d{3})*(?:\.\d{2})|\d+(?:\.\d{2}))/g;
 
   for (let i = 0; i < lines.length; i++) {
@@ -69,7 +69,6 @@ export function extractTransactionsFromText(text = '') {
       isoDate = new Date().toISOString().split('T')[0];
     }
 
-    // Clean numbers
     const cleanNumbers = amounts.map(a => parseFloat(a.replace(/,/g, ''))).filter(n => !isNaN(n) && n > 0);
     if (cleanNumbers.length === 0) continue;
 
@@ -78,10 +77,8 @@ export function extractTransactionsFromText(text = '') {
     const isRefund = lineLower.includes('refund') || lineLower.includes('rev') || lineLower.includes('reversal');
     const isChargeback = lineLower.includes('chargeback') || lineLower.includes('dispute');
 
-    // Amount assignment (take primary amount)
     const amount = cleanNumbers[0];
 
-    // Detect payment mode
     let paymentMode = 'UPI';
     if (lineLower.includes('card') || lineLower.includes('pos') || lineLower.includes('visa') || lineLower.includes('mastercard')) {
       paymentMode = 'CARD';
@@ -111,15 +108,11 @@ export function extractTransactionsFromText(text = '') {
 export function aggregateTransactionsToWeekly(rawTransactions = []) {
   if (!rawTransactions || rawTransactions.length === 0) return null;
 
-  // Sort by date ascending
   const sorted = [...rawTransactions].sort((a, b) => new Date(a.date) - new Date(b.date));
-
-  // Group by week (7-day buckets)
   const weekBuckets = new Map();
 
   for (const tx of sorted) {
     const txDate = new Date(tx.date);
-    // Find monday of the week
     const day = txDate.getDay();
     const diff = txDate.getDate() - day + (day === 0 ? -6 : 1);
     const monday = new Date(txDate.setDate(diff)).toISOString().split('T')[0];
@@ -187,9 +180,7 @@ export function aggregateTransactionsToWeekly(rawTransactions = []) {
     });
   }
 
-  // If parsed data has at least 3 weeks, pad or use directly
-  if (weeklyDatapoints.length >= 3) {
-    // If fewer than 20 weeks, extrapolate back to provide a full 20-30 week history
+  if (weeklyDatapoints.length >= 1) {
     if (weeklyDatapoints.length < 20) {
       const avgWeeklyRev = weeklyDatapoints.reduce((s, w) => s + w.gross_revenue, 0) / weeklyDatapoints.length;
       const firstDate = new Date(weeklyDatapoints[0].date);
@@ -223,38 +214,59 @@ export function aggregateTransactionsToWeekly(rawTransactions = []) {
 
 /**
  * Master parser function for Bank Statement
+ * Wires real pdf-parse to extract text from PDF bank statements instead of broken Buffer.toString().
+ * SYNTHETIC_BASELINE_TRANSACTIONS is triggered ONLY as an explicit, clearly-labeled last resort if real parsing fails.
  * @param {Object} documentData - Bank statement document object from submission
  * @returns {Object} { transactions, dataSource, dataSourceFlag, extractionNotes, rawTransactionCount }
  */
 export async function parseBankStatementTransactions(documentData = {}) {
   const bankStmtDoc = documentData.bank_statement || documentData;
 
-  if (!bankStmtDoc || (!bankStmtDoc.name && !bankStmtDoc.content && !bankStmtDoc.text && !bankStmtDoc.rawText)) {
+  if (!bankStmtDoc || (!bankStmtDoc.name && !bankStmtDoc.path && !bankStmtDoc.filePath && !bankStmtDoc.content && !bankStmtDoc.text && !bankStmtDoc.rawText)) {
     return {
       transactions: SYNTHETIC_BASELINE_TRANSACTIONS,
-      dataSource: 'Synthetic/Sample Data',
+      dataSource: 'Synthetic/Sample Data (Fallback)',
       dataSourceFlag: 'SYNTHETIC_FALLBACK',
-      extractionNotes: 'Using synthetic data — no bank statement uploaded',
+      extractionNotes: 'LAST RESORT FALLBACK: No bank statement document provided.',
       rawTransactionCount: 0
     };
   }
 
   try {
-    // Check if raw text or sample statement table was provided
-    let textToParse = bankStmtDoc.text || bankStmtDoc.content || bankStmtDoc.rawText || '';
+    let textToParse = bankStmtDoc.text || bankStmtDoc.rawText || bankStmtDoc.content || '';
 
-    // If text is not provided, check if base64 or raw simulated table
-    if (!textToParse && bankStmtDoc.fileData) {
-      textToParse = Buffer.from(bankStmtDoc.fileData, 'base64').toString('utf-8');
+    // If PDF file path is available on disk, run pdf-parse on actual binary file
+    const filePath = bankStmtDoc.path || bankStmtDoc.filePath;
+    if (!textToParse && filePath && fs.existsSync(filePath)) {
+      try {
+        const buffer = fs.readFileSync(filePath);
+        const parser = new PDFParse({ data: buffer });
+        await parser.load();
+        const textRes = await parser.getText();
+        textToParse = typeof textRes === 'string' ? textRes : (textRes?.text || '');
+        logger.info(`[BankStatementParser] Extracted ${textToParse.length} chars from PDF via pdf-parse (${filePath})`);
+      } catch (pdfErr) {
+        logger.warn(`[BankStatementParser] PDF parsing error for ${filePath}: ${pdfErr.message}`);
+      }
+    } else if (!textToParse && bankStmtDoc.fileData) {
+      try {
+        const buffer = Buffer.from(bankStmtDoc.fileData, 'base64');
+        const parser = new PDFParse({ data: buffer });
+        await parser.load();
+        const textRes = await parser.getText();
+        textToParse = typeof textRes === 'string' ? textRes : (textRes?.text || '');
+      } catch (e) {
+        logger.warn(`[BankStatementParser] Base64 PDF parse error: ${e.message}`);
+      }
     }
 
-    if (textToParse && typeof textToParse === 'string' && textToParse.trim().length > 20) {
+    if (textToParse && typeof textToParse === 'string' && textToParse.trim().length > 10) {
       const rawExtracted = extractTransactionsFromText(textToParse);
 
-      if (rawExtracted.length >= 5) {
+      if (rawExtracted.length > 0) {
         const weeklySeries = aggregateTransactionsToWeekly(rawExtracted);
 
-        if (weeklySeries && weeklySeries.length >= 3) {
+        if (weeklySeries && weeklySeries.length > 0) {
           logger.info(`[BankStatementParser] Successfully extracted ${rawExtracted.length} real transactions from ${bankStmtDoc.name || 'statement'}`);
           return {
             transactions: weeklySeries,
@@ -267,21 +279,22 @@ export async function parseBankStatementTransactions(documentData = {}) {
       }
     }
 
-    // Fallback if parsing didn't yield enough transactions
+    // Explicit LAST RESORT FALLBACK when statement has no extractable text / scanned image PDF
+    logger.warn(`[BankStatementParser] Statement "${bankStmtDoc.name || 'document'}" had no extractable transaction rows. Using explicit fallback.`);
     return {
       transactions: SYNTHETIC_BASELINE_TRANSACTIONS,
-      dataSource: 'Synthetic/Sample Data',
+      dataSource: 'Synthetic/Sample Data (Fallback)',
       dataSourceFlag: 'SYNTHETIC_FALLBACK',
-      extractionNotes: 'Using synthetic data — statement parsing failed or format unrecognized',
+      extractionNotes: `LAST RESORT FALLBACK: Statement "${bankStmtDoc.name || 'file'}" contained no extractable transaction text (e.g. scanned image PDF).`,
       rawTransactionCount: 0
     };
   } catch (error) {
     logger.warn('[BankStatementParser Exception]:', error.message);
     return {
       transactions: SYNTHETIC_BASELINE_TRANSACTIONS,
-      dataSource: 'Synthetic/Sample Data',
+      dataSource: 'Synthetic/Sample Data (Fallback)',
       dataSourceFlag: 'SYNTHETIC_FALLBACK',
-      extractionNotes: 'Using synthetic data — statement parsing error occurred',
+      extractionNotes: `LAST RESORT FALLBACK: Parsing error occurred (${error.message}).`,
       rawTransactionCount: 0
     };
   }

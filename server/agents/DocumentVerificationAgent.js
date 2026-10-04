@@ -1,9 +1,10 @@
 import { BaseAgent } from './BaseAgent.js';
 import { validateGSTIN } from '../utils/validators.js';
+import { verifyPanCardOCR, verifyGstCertificateOCR } from '../services/ocrVerificationService.js';
 
 /**
  * DocumentVerificationAgent
- * Validates completeness, format compliance, and DOCUMENT QUALITY (resolution, size, readability)
+ * Validates completeness, format compliance, quality, and OCR-BASED CONTENT CROSS-VERIFICATION
  * of submitted KYC & banking documents.
  */
 export class DocumentVerificationAgent extends BaseAgent {
@@ -12,9 +13,9 @@ export class DocumentVerificationAgent extends BaseAgent {
   }
 
   /**
-   * Executes document completeness, format integrity, and quality validation.
+   * Executes document completeness, format integrity, quality, and OCR content cross-verification.
    * @param {Object} input - Raw merchant application submission payload.
-   * @returns {Promise<Object>} Verification status, document quality breakdown, and reason codes.
+   * @returns {Promise<Object>} Verification status, document quality breakdown, OCR cross-match, and reason codes.
    */
   async run(input) {
     const rawData = input || {};
@@ -42,6 +43,7 @@ export class DocumentVerificationAgent extends BaseAgent {
         });
         return {
           status: 'Missing',
+          ocrStatus: 'Missing',
           reason: 'Document not uploaded',
           qualityPassed: false
         };
@@ -62,6 +64,7 @@ export class DocumentVerificationAgent extends BaseAgent {
         isFormatValid = false;
         return {
           status: 'Needs Re-upload',
+          ocrStatus: 'Needs Re-upload',
           reason: `Unsupported file format (${ext})`,
           qualityPassed: false
         };
@@ -83,6 +86,7 @@ export class DocumentVerificationAgent extends BaseAgent {
         });
         return {
           status: 'Needs Re-upload',
+          ocrStatus: 'Needs Re-upload',
           reason: `${docTitle} appears corrupted or unreadable`,
           qualityPassed: false
         };
@@ -100,6 +104,7 @@ export class DocumentVerificationAgent extends BaseAgent {
           });
           return {
             status: 'Needs Re-upload',
+            ocrStatus: 'Needs Re-upload',
             reason: `Low Resolution (${width}px) — may be illegible (min 600px width)`,
             qualityPassed: false
           };
@@ -116,6 +121,7 @@ export class DocumentVerificationAgent extends BaseAgent {
           });
           return {
             status: 'Needs Re-upload',
+            ocrStatus: 'Needs Re-upload',
             reason: `Possible quality issue — file size unusually small (${kbSize}KB < 20KB)`,
             qualityPassed: false
           };
@@ -133,6 +139,7 @@ export class DocumentVerificationAgent extends BaseAgent {
           });
           return {
             status: 'Needs Re-upload',
+            ocrStatus: 'Needs Re-upload',
             reason: 'Unreadable or corrupted PDF (0 pages)',
             qualityPassed: false
           };
@@ -149,6 +156,7 @@ export class DocumentVerificationAgent extends BaseAgent {
           });
           return {
             status: 'Needs Re-upload',
+            ocrStatus: 'Needs Re-upload',
             reason: `Unreadable or corrupted PDF (unusually small: ${kbSize}KB < 10KB)`,
             qualityPassed: false
           };
@@ -158,6 +166,7 @@ export class DocumentVerificationAgent extends BaseAgent {
       // If passed all presence, format, and quality checks
       return {
         status: 'Clear',
+        ocrStatus: 'Clear',
         reason: 'Passed all completeness and quality checks',
         qualityPassed: true,
         details: {
@@ -174,6 +183,104 @@ export class DocumentVerificationAgent extends BaseAgent {
       pan_card: evaluateDocQuality(documents.pan_card, 'pan', 'PAN Card', ['.pdf', '.jpg', '.jpeg', '.png']),
       bank_statement: evaluateDocQuality(documents.bank_statement, 'bank_statement', 'Bank Statement', ['.pdf'])
     };
+
+    // --- OCR Cross-Verification for PAN Card ---
+    if (documents.pan_card && documentStatuses.pan_card.status !== 'Missing' && documentStatuses.pan_card.status !== 'Needs Re-upload') {
+      try {
+        const panOcrResult = await verifyPanCardOCR(documents.pan_card, merchantData);
+        documentStatuses.pan_card = {
+          ...documentStatuses.pan_card,
+          status: panOcrResult.status,
+          ocrStatus: panOcrResult.ocrStatus,
+          ocrExtractedValue: panOcrResult.ocrExtractedValue,
+          ocrConfidence: panOcrResult.ocrConfidence,
+          ocrRawText: panOcrResult.ocrRawText,
+          matchResult: panOcrResult.matchResult,
+          details: {
+            ...documentStatuses.pan_card.details,
+            ocrExtractedValue: panOcrResult.ocrExtractedValue,
+            ocrConfidence: panOcrResult.ocrConfidence,
+            ocrRawText: panOcrResult.ocrRawText
+          }
+        };
+
+        if (panOcrResult.status === 'Mismatch Detected') {
+          qualityIssueItems.push('PAN Card OCR mismatch');
+          reasonCodes.push({
+            code: 'DOC_OCR_PAN_MISMATCH',
+            description: `PAN Card OCR Mismatch: Extracted "${panOcrResult.ocrExtractedValue}" does not match form/GSTIN PAN — strong fraud signal!`,
+            weight: 0.25
+          });
+        } else if (panOcrResult.status === 'OCR Inconclusive') {
+          qualityIssueItems.push('PAN Card OCR inconclusive');
+          reasonCodes.push({
+            code: 'DOC_OCR_PAN_INCONCLUSIVE',
+            description: `PAN Card OCR Inconclusive (${panOcrResult.matchResult}) — requires human underwriter review`,
+            weight: 0.05
+          });
+        } else if (panOcrResult.status === 'Verified Match') {
+          reasonCodes.push({
+            code: 'DOC_OCR_PAN_VERIFIED_MATCH',
+            description: `PAN Card OCR Verified Match: Extracted "${panOcrResult.ocrExtractedValue}" (${panOcrResult.ocrConfidence}% confidence)`,
+            weight: 0.0
+          });
+        }
+      } catch (ocrErr) {
+        documentStatuses.pan_card.status = 'OCR Inconclusive';
+        documentStatuses.pan_card.ocrStatus = 'OCR Inconclusive';
+        documentStatuses.pan_card.matchResult = `OCR execution error: ${ocrErr.message}`;
+        qualityIssueItems.push('PAN Card OCR error');
+      }
+    }
+
+    // --- OCR Cross-Verification for GST Certificate ---
+    if (documents.gst_certificate && documentStatuses.gst_certificate.status !== 'Missing' && documentStatuses.gst_certificate.status !== 'Needs Re-upload') {
+      try {
+        const gstOcrResult = await verifyGstCertificateOCR(documents.gst_certificate, merchantData);
+        documentStatuses.gst_certificate = {
+          ...documentStatuses.gst_certificate,
+          status: gstOcrResult.status,
+          ocrStatus: gstOcrResult.ocrStatus,
+          ocrExtractedValue: gstOcrResult.ocrExtractedValue,
+          ocrConfidence: gstOcrResult.ocrConfidence,
+          ocrRawText: gstOcrResult.ocrRawText,
+          matchResult: gstOcrResult.matchResult,
+          details: {
+            ...documentStatuses.gst_certificate.details,
+            ocrExtractedValue: gstOcrResult.ocrExtractedValue,
+            ocrConfidence: gstOcrResult.ocrConfidence,
+            ocrRawText: gstOcrResult.ocrRawText
+          }
+        };
+
+        if (gstOcrResult.status === 'Mismatch Detected') {
+          qualityIssueItems.push('GST Certificate OCR mismatch');
+          reasonCodes.push({
+            code: 'DOC_OCR_GSTIN_MISMATCH',
+            description: `GST Certificate OCR Mismatch: Extracted "${gstOcrResult.ocrExtractedValue}" does not match form GSTIN — strong fraud signal!`,
+            weight: 0.25
+          });
+        } else if (gstOcrResult.status === 'OCR Inconclusive') {
+          qualityIssueItems.push('GST Certificate OCR inconclusive');
+          reasonCodes.push({
+            code: 'DOC_OCR_GSTIN_INCONCLUSIVE',
+            description: `GST Certificate OCR Inconclusive (${gstOcrResult.matchResult}) — requires human underwriter review`,
+            weight: 0.05
+          });
+        } else if (gstOcrResult.status === 'Verified Match') {
+          reasonCodes.push({
+            code: 'DOC_OCR_GSTIN_VERIFIED_MATCH',
+            description: `GST Certificate OCR Verified Match: Extracted "${gstOcrResult.ocrExtractedValue}" (${gstOcrResult.ocrConfidence}% confidence)`,
+            weight: 0.0
+          });
+        }
+      } catch (ocrErr) {
+        documentStatuses.gst_certificate.status = 'OCR Inconclusive';
+        documentStatuses.gst_certificate.ocrStatus = 'OCR Inconclusive';
+        documentStatuses.gst_certificate.matchResult = `OCR execution error: ${ocrErr.message}`;
+        qualityIssueItems.push('GST Certificate OCR error');
+      }
+    }
 
     // Bank Details Completeness Check
     const hasAccountHolder = Boolean(bankDetails.account_holder && bankDetails.account_holder.trim().length > 0);
@@ -250,12 +357,20 @@ export class DocumentVerificationAgent extends BaseAgent {
         weight: 0.25
       });
       bankVerificationPassed = false;
-    } else if (bankVerificationStatus === 'Name Mismatch') {
+    } else if (bankVerificationStatus === 'Name Mismatch' || bankVerification.nameMatchResult === 'No Match') {
       qualityIssueItems.push('Bank account holder name mismatch');
       reasonCodes.push({
         code: 'DOC_BANK_NAME_MISMATCH',
-        description: `Bank account name mismatch: registered name (${bankVerification.registeredName || 'unknown'}) differs from submitted name (${bankDetails.account_holder || 'unknown'})`,
+        description: `Bank account name mismatch (No Match): registered name ("${bankVerification.registeredName || 'unknown'}") differs from submitted name ("${bankDetails.account_holder || 'unknown'}") — requires underwriter scrutiny`,
         weight: 0.20
+      });
+      bankVerificationPassed = false;
+    } else if (bankVerificationStatus === 'Pending' || bankVerification.nameMatchResult === 'Pending') {
+      qualityIssueItems.push('Bank account penny-drop verification pending');
+      reasonCodes.push({
+        code: 'DOC_BANK_VERIFICATION_PENDING',
+        description: 'Bank account penny-drop validation is pending settlement confirmation',
+        weight: 0.15
       });
       bankVerificationPassed = false;
     } else if (bankVerificationStatus === 'Not Attempted' && hasBankDetails) {
@@ -264,37 +379,49 @@ export class DocumentVerificationAgent extends BaseAgent {
         description: 'Bank account penny-drop verification was not attempted',
         weight: 0.10
       });
+    } else if (bankVerification.nameMatchResult === 'Partial Match') {
+      reasonCodes.push({
+        code: 'DOC_BANK_NAME_PARTIAL_MATCH',
+        description: `Bank account registered name has minor variation: "${bankVerification.registeredName || ''}" vs submitted "${bankDetails.account_holder || ''}" (${bankVerification.nameMatchScore || 70}% match)`,
+        weight: 0.05
+      });
+    } else if (bankVerificationStatus === 'Verified') {
+      reasonCodes.push({
+        code: 'DOC_BANK_NAME_MATCH',
+        description: `Bank account active and name verified ("${bankVerification.registeredName || bankDetails.account_holder}") via Razorpay Penny-Drop`,
+        weight: 0.0
+      });
     }
 
     // Overall Status Computation
     const hasMissing = missingItems.length > 0 || !hasBankDetails;
-    const hasQualityIssues = qualityIssueItems.length > 0 || Object.values(documentStatuses).some((d) => d.status === 'Needs Re-upload') || !bankVerificationPassed;
+    const hasQualityIssues = qualityIssueItems.length > 0 || Object.values(documentStatuses).some((d) => d.status === 'Needs Re-upload' || d.status === 'Mismatch Detected' || d.status === 'OCR Inconclusive') || !bankVerificationPassed;
 
     let status = 'Verified';
     if (hasMissing) {
       status = 'Incomplete';
-    } else if (hasQualityIssues) {
-      status = 'Needs Review';
     } else if (!isFormatValid) {
       status = 'Invalid Format';
+    } else if (hasQualityIssues) {
+      status = 'Needs Review';
     }
 
     if (status === 'Verified') {
       reasonCodes.push({
         code: 'KYC_DOCS_VERIFIED',
-        description: 'All KYC documents verified with clear quality',
+        description: 'All KYC documents verified with clear quality and OCR cross-match',
         weight: 0.0
       });
     }
 
-    let summary = 'All KYC documents and commercial bank details verified with clear quality.';
+    let summary = 'All KYC documents and commercial bank details verified with clear quality and OCR cross-match.';
     if (status === 'Incomplete') {
       const missingStr = missingItems.length > 0 ? `Missing: ${missingItems.join(', ')}` : '';
-      const qualityStr = qualityIssueItems.length > 0 ? `Quality issues: ${qualityIssueItems.join(', ')}` : '';
+      const qualityStr = qualityIssueItems.length > 0 ? `Quality/OCR issues: ${qualityIssueItems.join(', ')}` : '';
       const combined = [missingStr, qualityStr].filter(Boolean).join('; ');
       summary = `${combined} → All flagged for manual review`;
     } else if (status === 'Needs Review') {
-      summary = `Quality issues: ${qualityIssueItems.join(', ')} → Needs Re-upload / Manual Review`;
+      summary = `Quality/OCR issues: ${qualityIssueItems.join(', ')} → Needs Re-upload / Manual Review`;
     } else if (status === 'Invalid Format') {
       summary = `Format issues: ${formatIssues.join(', ')} → Requires manual verification`;
     }
@@ -317,8 +444,8 @@ export class DocumentVerificationAgent extends BaseAgent {
           bankDetails: hasBankDetails
         },
         quality: {
-          gstClear: documentStatuses.gst_certificate.status === 'Clear',
-          panClear: documentStatuses.pan_card.status === 'Clear',
+          gstClear: documentStatuses.gst_certificate.status === 'Verified Match' || documentStatuses.gst_certificate.status === 'Clear',
+          panClear: documentStatuses.pan_card.status === 'Verified Match' || documentStatuses.pan_card.status === 'Clear',
           bankStatementClear: documentStatuses.bank_statement.status === 'Clear'
         },
         format: {
@@ -331,3 +458,4 @@ export class DocumentVerificationAgent extends BaseAgent {
     };
   }
 }
+

@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { submitApplyApplication, validateBankAccountApi } from '../api/applicationApi';
+import { submitApplyApplication, validateBankAccountApi, checkFundAccountValidationStatusApi } from '../api/applicationApi';
+
 import { submitPublicApplication } from '../api/companyApi';
 import { validateGSTIN, GSTIN_STATE_CODES } from '../utils/gstinValidator';
 
@@ -282,13 +283,19 @@ export default function NewApplication({ publicCompany = null }) {
 
   // Razorpay Fund Account Validation (Penny-Drop) state
   const [bankVerification, setBankVerification] = useState({
-    status: 'Not Attempted', // 'Verified' | 'Failed' | 'Name Mismatch' | 'Not Attempted'
+    status: 'Not Attempted', // 'Verified' | 'Partial Match' | 'Name Mismatch' | 'Failed' | 'Pending' | 'Not Attempted'
+    nameMatchResult: 'Not Attempted', // 'Match' | 'Partial Match' | 'No Match' | 'Pending' | 'Not Attempted'
+    nameMatchScore: null,
     registeredName: '',
     referenceId: '',
+    contactId: '',
+    fundAccountId: '',
+    validationId: '',
     message: '',
     loading: false,
     error: null
   });
+
 
   // Step 3: Document Uploads
   const [documents, setDocuments] = useState({
@@ -469,11 +476,42 @@ export default function NewApplication({ publicCompany = null }) {
   };
 
   // --- Razorpay Fund Account Validation (Penny-Drop) Handler ---
-  const triggerBankVerification = async () => {
+  const pollValidationStatus = (validationId) => {
+    let attempts = 0;
+    const interval = setInterval(async () => {
+      attempts++;
+      try {
+        const statusRes = await checkFundAccountValidationStatusApi(validationId);
+        if (statusRes && statusRes.status && statusRes.status !== 'Pending') {
+          clearInterval(interval);
+          setBankVerification((prev) => ({
+            ...prev,
+            status: statusRes.status,
+            nameMatchResult: statusRes.nameMatchResult || 'Match',
+            nameMatchScore: statusRes.nameMatchScore,
+            registeredName: statusRes.registeredName || prev.registeredName,
+            message: statusRes.message || 'Bank account verified via penny drop.',
+            loading: false
+          }));
+        } else if (attempts >= 8) {
+          clearInterval(interval);
+        }
+      } catch (e) {
+        if (attempts >= 5) clearInterval(interval);
+      }
+    }, 1500);
+  };
+
+  const triggerBankVerification = async (forcedParams = null) => {
+    const accNum = forcedParams?.account_number || bankData.account_number;
+    const ifsc = forcedParams?.ifsc || bankData.ifsc;
+    const holder = forcedParams?.account_holder || bankData.account_holder;
+    const simulatePending = forcedParams?.simulatePending || false;
+
     const errors = {};
-    if (!bankData.account_holder?.trim()) errors.account_holder = 'Account Holder Name is required.';
-    if (!bankData.account_number?.trim()) errors.account_number = 'Account Number is required.';
-    if (!bankData.ifsc?.trim()) errors.ifsc = 'IFSC Code is required.';
+    if (!holder?.trim()) errors.account_holder = 'Account Holder Name is required.';
+    if (!accNum?.trim()) errors.account_number = 'Account Number is required.';
+    if (!ifsc?.trim()) errors.ifsc = 'IFSC Code is required.';
 
     if (Object.keys(errors).length > 0) {
       setBankValidationErrors(errors);
@@ -483,26 +521,44 @@ export default function NewApplication({ publicCompany = null }) {
     setBankVerification((prev) => ({ ...prev, loading: true, error: null }));
     try {
       const res = await validateBankAccountApi({
-        account_number: bankData.account_number,
-        ifsc: bankData.ifsc,
-        account_holder: bankData.account_holder
+        account_number: accNum,
+        ifsc: ifsc,
+        account_holder: holder,
+        simulatePending
       });
 
-      setBankVerification({
+      const updated = {
         status: res.status || 'Verified',
-        registeredName: res.registeredName || bankData.account_holder,
-        referenceId: res.referenceId || '',
+        nameMatchResult: res.nameMatchResult || (res.status === 'Verified' ? 'Match' : res.status === 'Name Mismatch' ? 'No Match' : 'Pending'),
+        nameMatchScore: res.nameMatchScore,
+        registeredName: res.registeredName || holder,
+        referenceId: res.referenceId || res.validationId || '',
+        contactId: res.contactId || '',
+        fundAccountId: res.fundAccountId || '',
+        validationId: res.validationId || res.referenceId || '',
         message: res.message || '',
         loading: false,
         error: res.status === 'Failed' ? (res.message || 'Validation failed') : null
-      });
+      };
 
-      return res.status === 'Verified';
+      setBankVerification(updated);
+
+      // If pending, initiate polling to resolve asynchronously
+      if (res.status === 'Pending' && (res.validationId || res.referenceId)) {
+        pollValidationStatus(res.validationId || res.referenceId);
+      }
+
+      return res.status === 'Verified' || res.nameMatchResult === 'Partial Match';
     } catch (err) {
       setBankVerification({
         status: 'Failed',
+        nameMatchResult: 'No Match',
+        nameMatchScore: 0,
         registeredName: '',
         referenceId: '',
+        contactId: '',
+        fundAccountId: '',
+        validationId: '',
         message: err.message || 'Penny-drop verification failed',
         loading: false,
         error: err.message || 'Penny-drop verification failed'
@@ -510,6 +566,7 @@ export default function NewApplication({ publicCompany = null }) {
       return false;
     }
   };
+
 
   // --- Step 3 Document Upload Handlers ---
   const handleFileSelect = (docKey, file, allowedTypes, maxMB) => {
@@ -543,7 +600,7 @@ export default function NewApplication({ publicCompany = null }) {
       previewUrl = URL.createObjectURL(file);
     }
 
-    // 4. Simulate realistic upload progress
+    // 4. Set document state immediately with real file
     setDocuments((prev) => ({
       ...prev,
       [docKey]: {
@@ -553,39 +610,11 @@ export default function NewApplication({ publicCompany = null }) {
         sizeFormatted: formatBytes(file.size),
         type: file.type || fileExt,
         previewUrl,
-        progress: 30,
-        isUploading: true,
-        isUploaded: false
+        progress: 100,
+        isUploading: false,
+        isUploaded: true
       }
     }));
-
-    setTimeout(() => {
-      setDocuments((prev) => {
-        if (!prev[docKey]) return prev;
-        return {
-          ...prev,
-          [docKey]: {
-            ...prev[docKey],
-            progress: 80
-          }
-        };
-      });
-    }, 200);
-
-    setTimeout(() => {
-      setDocuments((prev) => {
-        if (!prev[docKey]) return prev;
-        return {
-          ...prev,
-          [docKey]: {
-            ...prev[docKey],
-            progress: 100,
-            isUploading: false,
-            isUploaded: true
-          }
-        };
-      });
-    }, 450);
   };
 
   const handleRemoveDocument = (docKey) => {
@@ -807,47 +836,66 @@ export default function NewApplication({ publicCompany = null }) {
           state: bankData.state || '',
           bank_verification: {
             status: bankVerification.status || 'Verified',
+            nameMatchResult: bankVerification.nameMatchResult || (bankVerification.status === 'Verified' ? 'Match' : bankVerification.status === 'Name Mismatch' ? 'No Match' : 'Pending'),
+            nameMatchScore: bankVerification.nameMatchScore ?? 100,
             registeredName: bankVerification.registeredName || bankData.account_holder,
             referenceId: bankVerification.referenceId || `fav_test_${Date.now()}`,
+            contactId: bankVerification.contactId || '',
+            fundAccountId: bankVerification.fundAccountId || '',
+            validationId: bankVerification.validationId || bankVerification.referenceId || '',
             validatedAt: new Date().toISOString()
           },
           bankVerificationStatus: bankVerification.status || 'Verified'
+
         },
         documents: {
           gst_certificate: documents.gst_certificate ? {
             name: documents.gst_certificate.name,
             size: documents.gst_certificate.size,
             sizeFormatted: documents.gst_certificate.sizeFormatted,
-            type: documents.gst_certificate.type,
-            width: documents.gst_certificate.width || 1200,
-            height: documents.gst_certificate.height || 800,
-            verified: true
+            type: documents.gst_certificate.type
           } : null,
           pan_card: documents.pan_card ? {
             name: documents.pan_card.name,
             size: documents.pan_card.size,
             sizeFormatted: documents.pan_card.sizeFormatted,
-            type: documents.pan_card.type,
-            width: documents.pan_card.width || 1000,
-            height: documents.pan_card.height || 630,
-            verified: true
+            type: documents.pan_card.type
           } : null,
           bank_statement: documents.bank_statement ? {
             name: documents.bank_statement.name,
             size: documents.bank_statement.size,
             sizeFormatted: documents.bank_statement.sizeFormatted,
-            type: documents.bank_statement.type,
-            pageCount: documents.bank_statement.pageCount || 6,
-            verified: true
+            type: documents.bank_statement.type
           } : null
         }
       };
 
+      const formDataObj = new FormData();
+      let hasRealFiles = false;
+
+      if (documents.gst_certificate?.file) {
+        formDataObj.append('gst_certificate', documents.gst_certificate.file);
+        hasRealFiles = true;
+      }
+      if (documents.pan_card?.file) {
+        formDataObj.append('pan_card', documents.pan_card.file);
+        hasRealFiles = true;
+      }
+      if (documents.bank_statement?.file) {
+        formDataObj.append('bank_statement', documents.bank_statement.file);
+        hasRealFiles = true;
+      }
+
+      const submitData = hasRealFiles ? (() => {
+        formDataObj.append('payload', JSON.stringify(payload));
+        return formDataObj;
+      })() : payload;
+
       let res;
       if (publicCompany && publicCompany.slug) {
-        res = await submitPublicApplication(publicCompany.slug, payload);
+        res = await submitPublicApplication(publicCompany.slug, submitData);
       } else {
-        res = await submitApplyApplication(payload);
+        res = await submitApplyApplication(submitData);
       }
       setResult(res);
     } catch (err) {
@@ -1546,7 +1594,7 @@ export default function NewApplication({ publicCompany = null }) {
               </div>
 
               {/* Status Display */}
-              {bankVerification.status === 'Verified' && (
+              {bankVerification.status === 'Verified' && bankVerification.nameMatchResult !== 'Partial Match' && (
                 <div
                   style={{
                     background: 'rgba(16, 185, 129, 0.12)',
@@ -1557,20 +1605,88 @@ export default function NewApplication({ publicCompany = null }) {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-                    <span style={{ color: '#10b981', fontWeight: '800', fontSize: '1rem' }}>✓ Bank account verified</span>
-                    <span className="badge badge-approved" style={{ fontSize: '0.65rem' }}>ACTIVE</span>
+                    <span style={{ color: '#10b981', fontWeight: '800', fontSize: '1rem' }}>✓ Bank Account Active & Name Matched</span>
+                    <span className="badge badge-approved" style={{ fontSize: '0.65rem' }}>
+                      {bankVerification.nameMatchScore ? `${bankVerification.nameMatchScore}% MATCH` : 'MATCH'}
+                    </span>
                   </div>
                   <div style={{ fontSize: '0.82rem', color: 'var(--text-main)', lineHeight: '1.4' }}>
                     Beneficiary Name: <strong>{bankVerification.registeredName || bankData.account_holder}</strong>
                   </div>
                   {bankVerification.referenceId && (
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem', fontFamily: 'monospace' }}>
-                      Razorpay Ref ID: {bankVerification.referenceId}
+                      Razorpay Ref ID: {bankVerification.referenceId} {bankVerification.fundAccountId ? `| FA: ${bankVerification.fundAccountId}` : ''}
                     </div>
                   )}
                 </div>
               )}
 
+              {/* Partial Match */}
+              {(bankVerification.nameMatchResult === 'Partial Match' || (bankVerification.status === 'Verified' && bankVerification.nameMatchScore && bankVerification.nameMatchScore < 80)) && (
+                <div
+                  style={{
+                    background: 'rgba(245, 158, 11, 0.12)',
+                    border: '1px solid rgba(245, 158, 11, 0.35)',
+                    borderRadius: '8px',
+                    padding: '0.85rem 1rem',
+                    marginBottom: '1rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                    <span style={{ color: '#f59e0b', fontWeight: '800', fontSize: '0.95rem' }}>
+                      ⚠️ Minor Name Variation (Partial Match)
+                    </span>
+                    <span className="badge badge-review" style={{ fontSize: '0.65rem' }}>
+                      {bankVerification.nameMatchScore ? `${bankVerification.nameMatchScore}% PARTIAL` : 'PARTIAL MATCH'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-main)', lineHeight: '1.4' }}>
+                    Entered: <strong>{bankData.account_holder}</strong> | Registered: <strong>{bankVerification.registeredName}</strong>
+                  </div>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.25rem 0 0 0' }}>
+                    Account is active and verified. Minor suffix/spacing variations detected.
+                  </p>
+                </div>
+              )}
+
+              {/* Verification Pending (Async) */}
+              {bankVerification.status === 'Pending' && (
+                <div
+                  style={{
+                    background: 'rgba(59, 130, 246, 0.12)',
+                    border: '1px solid rgba(59, 130, 246, 0.35)',
+                    borderRadius: '8px',
+                    padding: '0.85rem 1rem',
+                    marginBottom: '1rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                    <span className="inline-spinner" style={{ borderColor: 'rgba(59, 130, 246, 0.3)', borderTopColor: '#3b82f6' }}></span>
+                    <span style={{ color: '#3b82f6', fontWeight: '800', fontSize: '0.95rem' }}>
+                      ⏳ Verification Pending (Awaiting Bank Callback)
+                    </span>
+                    <span className="badge badge-review" style={{ fontSize: '0.65rem', background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa' }}>
+                      PROCESSING
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-main)', margin: 0, lineHeight: '1.4' }}>
+                    Penny-drop transaction dispatched via Razorpay FAV. Awaiting settlement webhook or bank confirmation...
+                  </p>
+                  <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      className="preset-pill-btn"
+                      style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem', color: '#60a5fa', borderColor: 'rgba(59, 130, 246, 0.4)' }}
+                      onClick={() => pollValidationStatus(bankVerification.validationId || bankVerification.referenceId)}
+                    >
+                      🔄 Refresh Status
+                    </button>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Auto-polling every 1.5s</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Failed / Inactive Account */}
               {bankVerification.status === 'Failed' && (
                 <div
                   style={{
@@ -1592,7 +1708,8 @@ export default function NewApplication({ publicCompany = null }) {
                 </div>
               )}
 
-              {bankVerification.status === 'Name Mismatch' && (
+              {/* Name Mismatch (No Match) */}
+              {(bankVerification.status === 'Name Mismatch' || bankVerification.nameMatchResult === 'No Match') && (
                 <div
                   style={{
                     background: 'rgba(245, 158, 11, 0.12)',
@@ -1604,11 +1721,17 @@ export default function NewApplication({ publicCompany = null }) {
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
                     <span style={{ color: '#f59e0b', fontWeight: '800', fontSize: '0.95rem' }}>
-                      ⚠️ Account Holder Name Mismatch
+                      🚩 Account Holder Name Mismatch (No Match)
+                    </span>
+                    <span className="badge badge-rejected" style={{ fontSize: '0.65rem' }}>
+                      {bankVerification.nameMatchScore ? `${bankVerification.nameMatchScore}% NO MATCH` : 'NO MATCH'}
                     </span>
                   </div>
-                  <p style={{ fontSize: '0.82rem', color: 'var(--text-main)', margin: 0, lineHeight: '1.4' }}>
-                    {bankVerification.message || `Bank registered name differs from entered name. Application will require underwriter review.`}
+                  <div style={{ fontSize: '0.82rem', color: 'var(--text-main)', lineHeight: '1.4' }}>
+                    Entered: <strong>{bankData.account_holder}</strong> vs Bank Registered: <strong>{bankVerification.registeredName || 'Unknown'}</strong>
+                  </div>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-dim)', margin: '0.35rem 0 0 0', lineHeight: '1.3' }}>
+                    {bankVerification.message || `Bank registered name differs from entered name. Application will require underwriter scrutiny (will not be auto-rejected).`}
                   </p>
                 </div>
               )}
@@ -1618,18 +1741,18 @@ export default function NewApplication({ publicCompany = null }) {
                 <button
                   type="button"
                   className={bankVerification.status === 'Verified' ? 'btn-secondary' : 'btn-primary'}
-                  onClick={triggerBankVerification}
+                  onClick={() => triggerBankVerification()}
                   disabled={bankVerification.loading}
                   style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', padding: '0.55rem 1rem' }}
                 >
                   {bankVerification.loading ? (
                     <>
                       <span className="inline-spinner"></span>
-                      <span>Verifying via Penny-Drop...</span>
+                      <span>Verifying via Razorpay FAV...</span>
                     </>
                   ) : (
                     <>
-                      <span>{bankVerification.status === 'Verified' ? '✓ Re-verify Bank Account' : '⚡ Verify Bank Account'}</span>
+                      <span>{bankVerification.status === 'Verified' ? '✓ Re-verify Bank Account' : '⚡ Verify via Penny-Drop (Razorpay)'}</span>
                     </>
                   )}
                 </button>
@@ -1645,18 +1768,18 @@ export default function NewApplication({ publicCompany = null }) {
                       setBankVerification(prev => ({ ...prev, status: 'Not Attempted' }));
                     }}
                   >
-                    Active Account
+                    Active (Match)
                   </button>
                   <button
                     type="button"
                     className="preset-pill-btn"
                     style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem' }}
                     onClick={() => {
-                      setBankData(prev => ({ ...prev, account_number: '999999999999' }));
+                      setBankData(prev => ({ ...prev, account_number: '666666666666' }));
                       setBankVerification(prev => ({ ...prev, status: 'Not Attempted' }));
                     }}
                   >
-                    Invalid Account
+                    Partial Match
                   </button>
                   <button
                     type="button"
@@ -1667,11 +1790,34 @@ export default function NewApplication({ publicCompany = null }) {
                       setBankVerification(prev => ({ ...prev, status: 'Not Attempted' }));
                     }}
                   >
-                    Name Mismatch
+                    No Match
+                  </button>
+                  <button
+                    type="button"
+                    className="preset-pill-btn"
+                    style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem' }}
+                    onClick={() => {
+                      setBankData(prev => ({ ...prev, account_number: '777777777777' }));
+                      setBankVerification(prev => ({ ...prev, status: 'Not Attempted' }));
+                    }}
+                  >
+                    Pending (Async)
+                  </button>
+                  <button
+                    type="button"
+                    className="preset-pill-btn"
+                    style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem' }}
+                    onClick={() => {
+                      setBankData(prev => ({ ...prev, account_number: '999999999999' }));
+                      setBankVerification(prev => ({ ...prev, status: 'Not Attempted' }));
+                    }}
+                  >
+                    Invalid Acc
                   </button>
                 </div>
               </div>
             </div>
+
 
             <div className="wizard-actions">
               <button type="button" className="btn-secondary" onClick={goToPrevStep}>

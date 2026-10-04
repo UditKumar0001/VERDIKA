@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { fetchApplicationById, submitReviewDecision, requestApplicationInfo } from '../api/applicationApi';
+import { fetchApplicationById, submitReviewDecision, requestApplicationInfo, checkFundAccountValidationStatusApi } from '../api/applicationApi';
+
 import { generateUnderwritingReportPDF } from '../utils/pdfGenerator';
 import RiskExplainabilityChart from '../components/RiskExplainabilityChart';
 
@@ -48,11 +49,57 @@ export default function ApplicationDetail() {
     }
   };
 
+  const [favChecking, setFavChecking] = useState(false);
+  const [favMessage, setFavMessage] = useState(null);
+
+  const handleCheckFAVStatus = async () => {
+    const bVer = application?.merchant_data?.bank_details?.bank_verification || {};
+    const valId = bVer.validationId || bVer.referenceId;
+    if (!valId) return;
+    setFavChecking(true);
+    setFavMessage(null);
+    try {
+      const res = await checkFundAccountValidationStatusApi(valId, id);
+      if (res && res.status) {
+        setFavMessage(`Updated: ${res.status} (${res.nameMatchResult || 'Completed'})`);
+        const data = await fetchApplicationById(id);
+        setApplication(data.application);
+      }
+    } catch (e) {
+      setFavMessage(`Check failed: ${e.message}`);
+    } finally {
+      setFavChecking(false);
+    }
+  };
+
+  // Auto-poll if bank verification is in Pending state
+  useEffect(() => {
+    const bVer = application?.merchant_data?.bank_details?.bank_verification || {};
+    if (bVer.status === 'Pending') {
+      const interval = setInterval(async () => {
+        const valId = bVer.validationId || bVer.referenceId;
+        if (!valId) return;
+        try {
+          const res = await checkFundAccountValidationStatusApi(valId, id);
+          if (res && res.status && res.status !== 'Pending') {
+            clearInterval(interval);
+            const data = await fetchApplicationById(id);
+            setApplication(data.application);
+          }
+        } catch (e) {
+          // ignore transient poll error
+        }
+      }, 2500);
+      return () => clearInterval(interval);
+    }
+  }, [application?.id, application?.merchant_data?.bank_details?.bank_verification?.status]);
+
   useEffect(() => {
     if (id) {
       loadDetail();
     }
   }, [id]);
+
 
   const handleReviewSubmit = async (decisionType) => {
     setSubmitting(true);
@@ -458,43 +505,402 @@ export default function ApplicationDetail() {
                 📋 Document & KYC Integrity Checklist
               </h2>
               <div className="checklist-grid">
-                {[
-                  { key: 'gst_certificate', title: 'GST Registration Certificate', doc: merchantData.documents?.gst_certificate, required: true },
-                  { key: 'pan_card', title: 'Permanent Account Number (PAN)', doc: merchantData.documents?.pan_card, required: true },
-                  { key: 'bank_statement', title: 'Commercial Bank Statement (6 Months)', doc: merchantData.documents?.bank_statement, required: true },
-                  { key: 'bank_details', title: 'Bank Settlement Account Details', doc: merchantData.bank_details ? { isUploaded: true, verified: true } : null, required: true }
-                ].map(({ key, title, doc }) => {
-                  let status = 'Missing';
-                  let badgeClass = 'badge-doc-missing';
-                  let iconClass = 'check-missing';
-                  let iconSymbol = '✕';
-                  let note = 'Document not provided by applicant';
+                {(() => {
+                  const docLog = auditLogs.find((log) => log.agentName === 'DocumentVerificationAgent');
+                  const docStatuses = docLog?.outputSnapshot?.documentStatuses || application?.risk_result?.doc_result?.documentStatuses || {};
 
-                  if (doc && (doc.name || doc.verified || doc.isUploaded)) {
-                    status = 'Clear';
-                    badgeClass = 'badge-doc-clear';
-                    iconClass = 'check-success';
-                    iconSymbol = '✓';
-                    note = doc.name ? `${doc.name}` : 'Verified & Readable';
-                  }
+                  return [
+                    { key: 'gst_certificate', title: 'GST Registration Certificate', doc: merchantData.documents?.gst_certificate, docStatus: docStatuses.gst_certificate, required: true },
+                    { key: 'pan_card', title: 'Permanent Account Number (PAN)', doc: merchantData.documents?.pan_card, docStatus: docStatuses.pan_card, required: true },
+                    { key: 'bank_statement', title: 'Commercial Bank Statement (6 Months)', doc: merchantData.documents?.bank_statement, docStatus: docStatuses.bank_statement, required: true },
+                    { key: 'bank_details', title: 'Bank Settlement Account Details', doc: merchantData.bank_details ? { isUploaded: true, verified: true } : null, required: true }
+                  ].map(({ key, title, doc, docStatus }) => {
+                    let status = docStatus?.status || 'Missing';
+                    let badgeClass = 'badge-doc-missing';
+                    let iconClass = 'check-missing';
+                    let iconSymbol = '✕';
+                    let note = 'Document not provided by applicant';
 
-                  return (
-                    <div key={key} className="checklist-item">
-                      <div className="checklist-status-icon">
-                        <span className={iconClass}>{iconSymbol}</span>
-                      </div>
-                      <div className="checklist-info">
-                        <div className="checklist-doc-title">
-                          {title}
-                          <span className={badgeClass}>{status}</span>
+                    if (docStatus && docStatus.status) {
+                      status = docStatus.status;
+                      if (status === 'Verified Match' || status === 'Clear') {
+                        badgeClass = 'badge-doc-clear';
+                        iconClass = 'check-success';
+                        iconSymbol = '✓';
+                        note = docStatus.matchResult || (doc?.name ? `${doc.name}` : 'Verified & Readable');
+                      } else if (status === 'Mismatch Detected') {
+                        badgeClass = 'badge-rejected';
+                        iconClass = 'check-missing';
+                        iconSymbol = '🚩';
+                        note = docStatus.matchResult || 'OCR Mismatch Detected!';
+                      } else if (status === 'OCR Inconclusive') {
+                        badgeClass = 'badge-review';
+                        iconClass = 'check-missing';
+                        iconSymbol = '⚠️';
+                        note = docStatus.matchResult || 'OCR Inconclusive (routed to human review)';
+                      } else if (status === 'Needs Re-upload') {
+                        badgeClass = 'badge-review';
+                        iconClass = 'check-missing';
+                        iconSymbol = '⚠️';
+                        note = docStatus.reason || 'Needs Re-upload';
+                      }
+                    } else if (doc && (doc.name || doc.verified || doc.isUploaded)) {
+                      status = 'Clear';
+                      badgeClass = 'badge-doc-clear';
+                      iconClass = 'check-success';
+                      iconSymbol = '✓';
+                      note = doc.name ? `${doc.name}` : 'Verified & Readable';
+                    }
+
+                    return (
+                      <div key={key} className="checklist-item">
+                        <div className="checklist-status-icon">
+                          <span className={iconClass}>{iconSymbol}</span>
                         </div>
-                        <div className="checklist-doc-sub">{note}</div>
+                        <div className="checklist-info">
+                          <div className="checklist-doc-title">
+                            {title}
+                            <span className={badgeClass}>{status}</span>
+                          </div>
+                          <div className="checklist-doc-sub">{note}</div>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </div>
             </div>
+
+            {/* OCR Document Cross-Verification & Underwriter Transparency Panel */}
+            {(() => {
+              const docLog = auditLogs.find((log) => log.agentName === 'DocumentVerificationAgent');
+              const docStatuses = docLog?.outputSnapshot?.documentStatuses || application?.risk_result?.doc_result?.documentStatuses || {};
+              const panDoc = docStatuses.pan_card || {};
+              const gstDoc = docStatuses.gst_certificate || {};
+
+              const panForm = merchantData.pan || (merchantData.gstin && merchantData.gstin.length >= 12 ? merchantData.gstin.substring(2, 12) : 'Not Provided');
+              const gstForm = merchantData.gstin || 'Not Provided';
+
+              const hasOcrData = Boolean(panDoc.ocrStatus || gstDoc.ocrStatus || panDoc.ocrRawText || gstDoc.ocrRawText);
+              if (!hasOcrData) return null;
+
+              return (
+                <div className="dashboard-card" style={{ marginBottom: '1.25rem', border: '1px solid rgba(59, 130, 246, 0.35)', background: 'rgba(15, 23, 42, 0.5)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <span style={{ fontSize: '1.3rem' }}>🔍</span>
+                      <div>
+                        <h2 className="card-title" style={{ margin: 0, fontSize: '1.05rem' }}>
+                          OCR Document Content Verification & Transparency Panel
+                        </h2>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
+                          Tesseract.js Optical Character Recognition cross-checks document images/PDFs against form data
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1rem' }}>
+                    {/* PAN Card OCR Card */}
+                    {panDoc.status !== 'Missing' && (
+                      <div style={{
+                        background: 'rgba(15, 23, 42, 0.6)',
+                        border: panDoc.status === 'Verified Match'
+                          ? '1px solid rgba(16, 185, 129, 0.4)'
+                          : panDoc.status === 'Mismatch Detected'
+                          ? '1px solid rgba(239, 68, 68, 0.5)'
+                          : '1px solid rgba(245, 158, 11, 0.5)',
+                        borderRadius: '8px',
+                        padding: '1rem'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                          <strong style={{ fontSize: '0.92rem', color: 'var(--text-main)' }}>🪪 Permanent Account Number (PAN) Card</strong>
+                          <span className={`badge ${
+                            panDoc.status === 'Verified Match' ? 'badge-approved' : panDoc.status === 'Mismatch Detected' ? 'badge-rejected' : 'badge-review'
+                          }`} style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}>
+                            {panDoc.status === 'Verified Match' ? '✓ Verified Match' : panDoc.status === 'Mismatch Detected' ? '🚩 Mismatch Detected' : '⚠️ OCR Inconclusive'}
+                          </span>
+                        </div>
+
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                          <strong>Tesseract Confidence:</strong> <span className="font-mono" style={{ color: (panDoc.ocrConfidence ?? 0) >= 60 ? '#10b981' : '#f59e0b' }}>{panDoc.ocrConfidence ?? 0}%</span>
+                        </div>
+
+                        <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '0.65rem 0.8rem', borderRadius: '6px', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                            <span style={{ color: 'var(--text-dim)' }}>Form / GSTIN PAN:</span>
+                            <strong className="font-mono">{panForm}</strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: 'var(--text-dim)' }}>OCR Extracted PAN:</span>
+                            <strong className="font-mono" style={{ color: panDoc.status === 'Mismatch Detected' ? '#ef4444' : '#10b981' }}>
+                              {panDoc.ocrExtractedValue || 'Not Found'}
+                            </strong>
+                          </div>
+                        </div>
+
+                        <div style={{ fontSize: '0.78rem', color: panDoc.status === 'Mismatch Detected' ? '#ef4444' : panDoc.status === 'Verified Match' ? '#10b981' : '#f59e0b', marginBottom: '0.75rem', lineHeight: '1.4' }}>
+                          💡 {panDoc.matchResult || 'Cross-verification evaluated'}
+                        </div>
+
+                        {panDoc.ocrRawText && (
+                          <details style={{ background: 'rgba(15, 23, 42, 0.8)', padding: '0.5rem 0.75rem', borderRadius: '6px', fontSize: '0.75rem' }}>
+                            <summary style={{ cursor: 'pointer', color: 'var(--text-dim)', fontWeight: '600' }}>
+                              🔍 View Raw OCR Extracted Text
+                            </summary>
+                            <pre style={{ margin: '0.5rem 0 0 0', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--text-main)', fontFamily: 'monospace', fontSize: '0.72rem', maxHeight: '120px', overflowY: 'auto' }}>
+                              {panDoc.ocrRawText}
+                            </pre>
+                          </details>
+                        )}
+                      </div>
+                    )}
+
+                    {/* GST Certificate OCR Card */}
+                    {gstDoc.status !== 'Missing' && (
+                      <div style={{
+                        background: 'rgba(15, 23, 42, 0.6)',
+                        border: gstDoc.status === 'Verified Match'
+                          ? '1px solid rgba(16, 185, 129, 0.4)'
+                          : gstDoc.status === 'Mismatch Detected'
+                          ? '1px solid rgba(239, 68, 68, 0.5)'
+                          : '1px solid rgba(245, 158, 11, 0.5)',
+                        borderRadius: '8px',
+                        padding: '1rem'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                          <strong style={{ fontSize: '0.92rem', color: 'var(--text-main)' }}>📜 GST Registration Certificate</strong>
+                          <span className={`badge ${
+                            gstDoc.status === 'Verified Match' ? 'badge-approved' : gstDoc.status === 'Mismatch Detected' ? 'badge-rejected' : 'badge-review'
+                          }`} style={{ fontSize: '0.75rem', padding: '0.25rem 0.55rem' }}>
+                            {gstDoc.status === 'Verified Match' ? '✓ Verified Match' : gstDoc.status === 'Mismatch Detected' ? '🚩 Mismatch Detected' : '⚠️ OCR Inconclusive'}
+                          </span>
+                        </div>
+
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                          <strong>Tesseract Confidence:</strong> <span className="font-mono" style={{ color: (gstDoc.ocrConfidence ?? 0) >= 60 ? '#10b981' : '#f59e0b' }}>{gstDoc.ocrConfidence ?? 0}%</span>
+                        </div>
+
+                        <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '0.65rem 0.8rem', borderRadius: '6px', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                            <span style={{ color: 'var(--text-dim)' }}>Form GSTIN:</span>
+                            <strong className="font-mono">{gstForm}</strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: 'var(--text-dim)' }}>OCR Extracted GSTIN:</span>
+                            <strong className="font-mono" style={{ color: gstDoc.status === 'Mismatch Detected' ? '#ef4444' : '#10b981' }}>
+                              {gstDoc.ocrExtractedValue || 'Not Found'}
+                            </strong>
+                          </div>
+                        </div>
+
+                        <div style={{ fontSize: '0.78rem', color: gstDoc.status === 'Mismatch Detected' ? '#ef4444' : gstDoc.status === 'Verified Match' ? '#10b981' : '#f59e0b', marginBottom: '0.75rem', lineHeight: '1.4' }}>
+                          💡 {gstDoc.matchResult || 'Cross-verification evaluated'}
+                        </div>
+
+                        {gstDoc.ocrRawText && (
+                          <details style={{ background: 'rgba(15, 23, 42, 0.8)', padding: '0.5rem 0.75rem', borderRadius: '6px', fontSize: '0.75rem' }}>
+                            <summary style={{ cursor: 'pointer', color: 'var(--text-dim)', fontWeight: '600' }}>
+                              🔍 View Raw OCR Extracted Text
+                            </summary>
+                            <pre style={{ margin: '0.5rem 0 0 0', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--text-main)', fontFamily: 'monospace', fontSize: '0.72rem', maxHeight: '120px', overflowY: 'auto' }}>
+                              {gstDoc.ocrRawText}
+                            </pre>
+                          </details>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Razorpay Fund Account Validation (Penny-Drop) & Name Match Scrutiny Panel */}
+            {(() => {
+              const bVer = merchantData.bank_details?.bank_verification || {};
+              const registeredName = bVer.registeredName || 'Not Available';
+              const enteredName = merchantData.bank_details?.account_holder || 'Not Provided';
+              const matchResult = bVer.nameMatchResult || (bVer.status === 'Verified' ? 'Match' : bVer.status === 'Name Mismatch' ? 'No Match' : bVer.status === 'Pending' ? 'Pending' : 'Not Attempted');
+              const matchScore = bVer.nameMatchScore;
+              const isNoMatch = matchResult === 'No Match' || bVer.status === 'Name Mismatch';
+              const isPartialMatch = matchResult === 'Partial Match';
+              const isPendingVal = bVer.status === 'Pending' || matchResult === 'Pending';
+              const isMatch = (matchResult === 'Match' || bVer.status === 'Verified') && !isPartialMatch;
+
+              return (
+                <div
+                  className="dashboard-card"
+                  style={{
+                    marginBottom: '1.25rem',
+                    border: isNoMatch
+                      ? '1px solid rgba(245, 158, 11, 0.5)'
+                      : isPendingVal
+                      ? '1px solid rgba(59, 130, 246, 0.5)'
+                      : isPartialMatch
+                      ? '1px solid rgba(245, 158, 11, 0.4)'
+                      : '1px solid rgba(16, 185, 129, 0.35)',
+                    background: isNoMatch
+                      ? 'rgba(245, 158, 11, 0.08)'
+                      : isPendingVal
+                      ? 'rgba(59, 130, 246, 0.08)'
+                      : 'rgba(15, 23, 42, 0.5)'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <span style={{ fontSize: '1.3rem' }}>⚡</span>
+                      <div>
+                        <h2 className="card-title" style={{ margin: 0, fontSize: '1.05rem' }}>
+                          Razorpay Fund Account Validation (Penny-Drop) & Name Match
+                        </h2>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
+                          Real-time bank beneficiary verification via Razorpay FAV API
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      {isMatch && (
+                        <span className="badge badge-approved" style={{ fontSize: '0.75rem', padding: '0.3rem 0.65rem' }}>
+                          ✓ NAME MATCH ({matchScore ?? 100}%)
+                        </span>
+                      )}
+                      {isPartialMatch && (
+                        <span className="badge badge-review" style={{ fontSize: '0.75rem', padding: '0.3rem 0.65rem', background: 'rgba(245, 158, 11, 0.2)', color: '#f59e0b' }}>
+                          ⚠️ PARTIAL MATCH ({matchScore ?? 70}%)
+                        </span>
+                      )}
+                      {isNoMatch && (
+                        <span className="badge badge-rejected" style={{ fontSize: '0.75rem', padding: '0.3rem 0.65rem', background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' }}>
+                          🚩 NO MATCH ({matchScore ?? 15}%)
+                        </span>
+                      )}
+                      {isPendingVal && (
+                        <span className="badge badge-review" style={{ fontSize: '0.75rem', padding: '0.3rem 0.65rem', background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa' }}>
+                          ⏳ VERIFICATION PENDING
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Prominent Underwriter Scrutiny Flag Banner for No Match */}
+                  {isNoMatch && (
+                    <div
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.12)',
+                        border: '1px solid rgba(239, 68, 68, 0.35)',
+                        borderRadius: '8px',
+                        padding: '1rem',
+                        marginBottom: '1rem'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                        <span style={{ fontSize: '1.2rem' }}>🚩</span>
+                        <strong style={{ color: '#ef4444', fontSize: '0.92rem' }}>
+                          UNDERWRITER SCRUTINY FLAG: Bank Account Holder Name Discrepancy
+                        </strong>
+                      </div>
+                      <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.84rem', color: 'var(--text-main)', lineHeight: '1.45' }}>
+                        The beneficiary name registered at the bank (<strong>"{registeredName}"</strong>) does not match the applicant entered name (<strong>"{enteredName}"</strong>). Similarity score is <strong>{matchScore ?? 15}%</strong>.
+                      </p>
+                      <div style={{ background: 'rgba(15, 23, 42, 0.6)', padding: '0.6rem 0.8rem', borderRadius: '6px', fontSize: '0.78rem', color: '#f59e0b', borderLeft: '3px solid #f59e0b' }}>
+                        💡 <strong>Policy Guidance:</strong> This application has been routed to human review for extra scrutiny, not auto-rejected. Underwriters should cross-reference GST registration, proprietor PAN, or partnership deeds to determine if this is a legitimate personal account or director-held entity before reaching a credit verdict.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Partial Match Banner */}
+                  {isPartialMatch && (
+                    <div
+                      style={{
+                        background: 'rgba(245, 158, 11, 0.1)',
+                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                        borderRadius: '8px',
+                        padding: '0.85rem 1rem',
+                        marginBottom: '1rem'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                        <span style={{ fontSize: '1.1rem' }}>⚠️</span>
+                        <strong style={{ color: '#f59e0b', fontSize: '0.88rem' }}>
+                          Minor Name Variation Detected ({matchScore ?? 75}% Similarity)
+                        </strong>
+                      </div>
+                      <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-main)', lineHeight: '1.4' }}>
+                        Bank registered name: <strong>"{registeredName}"</strong> vs submitted name: <strong>"{enteredName}"</strong>. Minor entity suffix or token variation detected, but commercial account is confirmed active.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Pending Banner */}
+                  {isPendingVal && (
+                    <div
+                      style={{
+                        background: 'rgba(59, 130, 246, 0.1)',
+                        border: '1px solid rgba(59, 130, 246, 0.3)',
+                        borderRadius: '8px',
+                        padding: '0.85rem 1rem',
+                        marginBottom: '1rem'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span className="inline-spinner" style={{ borderColor: 'rgba(59, 130, 246, 0.3)', borderTopColor: '#3b82f6' }}></span>
+                          <strong style={{ color: '#60a5fa', fontSize: '0.88rem' }}>
+                            Verification Pending — Awaiting Bank Penny-Drop Settlement
+                          </strong>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          style={{ padding: '0.3rem 0.75rem', fontSize: '0.75rem' }}
+                          onClick={handleCheckFAVStatus}
+                          disabled={favChecking}
+                        >
+                          {favChecking ? 'Checking...' : '🔄 Poll Bank Status'}
+                        </button>
+                      </div>
+                      <p style={{ margin: '0.4rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        Razorpay Fund Account Validation is currently in-flight. The page will auto-poll or update upon webhook callback.
+                      </p>
+                    </div>
+                  )}
+
+                  {favMessage && (
+                    <div style={{ fontSize: '0.78rem', color: '#10b981', marginBottom: '0.75rem' }}>
+                      ✓ {favMessage}
+                    </div>
+                  )}
+
+                  {/* Verification Details Grid */}
+                  <div className="review-grid" style={{ marginBottom: 0 }}>
+                    <div className="review-item">
+                      <span className="review-item-label">Submitted Account Holder</span>
+                      <span className="review-item-val">{enteredName}</span>
+                    </div>
+                    <div className="review-item">
+                      <span className="review-item-label">Bank Registered Legal Name</span>
+                      <span className="review-item-val" style={{ fontWeight: '700', color: isNoMatch ? '#ef4444' : isMatch ? '#10b981' : 'var(--text-main)' }}>
+                        {registeredName}
+                      </span>
+                    </div>
+                    <div className="review-item">
+                      <span className="review-item-label">Fuzzy Match Similarity</span>
+                      <span className="review-item-val font-mono">
+                        {matchScore !== null && matchScore !== undefined ? `${matchScore}% (${matchResult})` : (isMatch ? '100% (Match)' : 'Pending')}
+                      </span>
+                    </div>
+                    <div className="review-item">
+                      <span className="review-item-label">Razorpay Reference / FA ID</span>
+                      <span className="review-item-val font-mono" style={{ fontSize: '0.75rem' }}>
+                        {bVer.validationId || bVer.referenceId || bVer.fundAccountId || 'Pending'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
 
             {/* Underwriter Action Panel OR Closed Decision Summary */}
             {(() => {
@@ -852,8 +1258,23 @@ export default function ApplicationDetail() {
 
           <div className="review-grid" style={{ marginBottom: '1.5rem' }}>
             <div className="review-item">
-              <span className="review-item-label">Bank Account Beneficiary</span>
+              <span className="review-item-label">Bank Account Beneficiary (Submitted)</span>
               <span className="review-item-val">{merchantData.bank_details?.account_holder || 'Not Provided'}</span>
+            </div>
+            <div className="review-item">
+              <span className="review-item-label">Bank Registered Name (Razorpay FAV)</span>
+              <span className="review-item-val" style={{ fontWeight: '700' }}>
+                {merchantData.bank_details?.bank_verification?.registeredName || 'Not Available'}
+              </span>
+            </div>
+            <div className="review-item">
+              <span className="review-item-label">Name Match Result & Similarity</span>
+              <span className="review-item-val font-mono">
+                {merchantData.bank_details?.bank_verification?.nameMatchResult || merchantData.bank_details?.bankVerificationStatus || 'Verified'}
+                {merchantData.bank_details?.bank_verification?.nameMatchScore !== undefined && merchantData.bank_details?.bank_verification?.nameMatchScore !== null
+                  ? ` (${merchantData.bank_details?.bank_verification?.nameMatchScore}%)`
+                  : ''}
+              </span>
             </div>
             <div className="review-item">
               <span className="review-item-label">Account Number</span>
@@ -864,10 +1285,35 @@ export default function ApplicationDetail() {
               <span className="review-item-val font-mono">{merchantData.bank_details?.ifsc || 'HDFC0001234'}</span>
             </div>
             <div className="review-item">
+              <span className="review-item-label">Bank Account Status</span>
+              <span className="review-item-val" style={{ textTransform: 'capitalize' }}>
+                {merchantData.bank_details?.bank_verification?.accountStatus || 'Active'}
+              </span>
+            </div>
+            <div className="review-item">
+              <span className="review-item-label">Razorpay Validation ID</span>
+              <span className="review-item-val font-mono" style={{ fontSize: '0.75rem' }}>
+                {merchantData.bank_details?.bank_verification?.validationId || merchantData.bank_details?.bank_verification?.referenceId || 'N/A'}
+              </span>
+            </div>
+            <div className="review-item">
+              <span className="review-item-label">Razorpay Fund Account ID</span>
+              <span className="review-item-val font-mono" style={{ fontSize: '0.75rem' }}>
+                {merchantData.bank_details?.bank_verification?.fundAccountId || 'N/A'}
+              </span>
+            </div>
+            <div className="review-item">
+              <span className="review-item-label">Razorpay Contact ID</span>
+              <span className="review-item-val font-mono" style={{ fontSize: '0.75rem' }}>
+                {merchantData.bank_details?.bank_verification?.contactId || 'N/A'}
+              </span>
+            </div>
+            <div className="review-item">
               <span className="review-item-label">Data Extraction Engine</span>
               <span className="review-item-val">{merchantData.data_source || 'Synthetic / Sample Engine'}</span>
             </div>
           </div>
+
 
           <h3 style={{ fontSize: '0.95rem', color: 'var(--text-main)', marginBottom: '0.75rem' }}>
             Raw Evaluation Features

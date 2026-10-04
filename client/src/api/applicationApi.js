@@ -78,11 +78,15 @@ export const submitApplication = async (data) => {
 };
 
 export const submitApplyApplication = async (payload) => {
+  const isFormData = typeof FormData !== 'undefined' && payload instanceof FormData;
+  const headers = isFormData ? {} : { 'Content-Type': 'application/json' };
+  const body = isFormData ? payload : JSON.stringify(payload);
+
   const res = await fetch(`${API_BASE_URL}/underwriting/apply`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     credentials: 'include',
-    body: JSON.stringify(payload)
+    body
   });
 
   const data = await res.json();
@@ -166,11 +170,11 @@ export const requestApplicationInfo = async (id, { request_type, notes }) => {
   return data; // returns { message, auditLogs }
 };
 
-export const validateBankAccountApi = async ({ account_number, ifsc, account_holder }) => {
+export const validateBankAccountApi = async ({ account_number, ifsc, account_holder, simulatePending, applicationId }) => {
   const res = await fetch(`${API_BASE_URL}/underwriting/validate-bank-account`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ account_number, ifsc, account_holder })
+    body: JSON.stringify({ account_number, ifsc, account_holder, simulatePending, applicationId })
   });
 
   const data = await res.json();
@@ -179,6 +183,22 @@ export const validateBankAccountApi = async ({ account_number, ifsc, account_hol
   }
   return data;
 };
+
+export const checkFundAccountValidationStatusApi = async (validationId, applicationId = null) => {
+  const query = applicationId ? `?applicationId=${encodeURIComponent(applicationId)}` : '';
+  const res = await fetch(`${API_BASE_URL}/underwriting/fund-account-validation/${encodeURIComponent(validationId)}/status${query}`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+    credentials: 'include'
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Failed to check bank validation status');
+  }
+  return data;
+};
+
 
 export const fetchApplicationStatusApi = async (token) => {
   const res = await fetch(`${API_BASE_URL}/underwriting/status/${token}`, {

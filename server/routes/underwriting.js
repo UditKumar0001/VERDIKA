@@ -6,10 +6,13 @@ import { User } from '../models/User.js';
 import { Company } from '../models/Company.js';
 import { Notification } from '../models/Notification.js';
 import { agentPipeline } from '../services/agentPipeline.js';
-import { validateBankAccountRazorpay } from '../services/razorpayBankValidationService.js';
+import { validateBankAccountRazorpay, checkValidationStatus, handleRazorpayWebhook } from '../services/razorpayBankValidationService.js';
+
 import { sendDecisionNotification } from '../services/notificationService.js';
 import { validateApplicationInput, validateGSTIN } from '../utils/validators.js';
 import { logger } from '../utils/logger.js';
+import { documentUploadFields } from '../middleware/uploadMiddleware.js';
+import { processUploadedDocument } from '../services/documentProcessorService.js';
 
 const router = Router();
 
@@ -19,18 +22,57 @@ const router = Router();
  */
 router.post('/validate-bank-account', async (req, res) => {
   try {
-    const { account_number, ifsc, account_holder } = req.body || {};
-    const result = await validateBankAccountRazorpay({ account_number, ifsc, account_holder });
+    const { account_number, ifsc, account_holder, simulatePending, applicationId } = req.body || {};
+    const result = await validateBankAccountRazorpay(
+      { account_number, ifsc, account_holder },
+      { simulatePending, applicationId }
+    );
     return res.json(result);
   } catch (error) {
     logger.error('[Validate Bank Account Route Error]:', error);
     return res.status(500).json({
       status: 'Failed',
       bankVerificationStatus: 'Failed',
+      nameMatchResult: 'No Match',
       error: error.message || 'Bank validation failed.'
     });
   }
 });
+
+/**
+ * GET /api/underwriting/fund-account-validation/:validationId/status
+ * Polling endpoint for asynchronous Razorpay Fund Account Validation status.
+ */
+router.get('/fund-account-validation/:validationId/status', async (req, res) => {
+  try {
+    const { validationId } = req.params;
+    const { applicationId } = req.query;
+    const result = await checkValidationStatus(validationId, applicationId);
+    return res.json(result);
+  } catch (error) {
+    logger.error('[FAV Status Check Route Error]:', error);
+    return res.status(500).json({
+      status: 'Failed',
+      error: error.message || 'Failed to check validation status.'
+    });
+  }
+});
+
+/**
+ * POST /api/underwriting/razorpay-webhook
+ * Webhook listener for Razorpay Fund Account Validation events
+ */
+router.post('/razorpay-webhook', async (req, res) => {
+  try {
+    const signature = req.headers['x-razorpay-signature'];
+    const result = await handleRazorpayWebhook(req.body, signature);
+    return res.status(200).json({ status: 'ok', result });
+  } catch (error) {
+    logger.warn('[Razorpay Webhook Error]:', error.message);
+    return res.status(400).json({ error: error.message });
+  }
+});
+
 
 /**
  * GET /api/underwriting/applications
@@ -150,10 +192,51 @@ router.get('/applications/:id', requireAuth, async (req, res) => {
 
 /**
  * POST /api/underwriting/apply-public/:companySlug
- * Public endpoint for merchants applying through a finance company's specific public shareable link.
- * No user login required. Looks up company by slug and attaches company_id to the application.
+/**
+ * Helper to process payload & multipart uploaded files
  */
-router.post('/apply-public/:companySlug', async (req, res) => {
+async function parseIncomingApplicationBody(req) {
+  let bodyData = {};
+  if (req.body && req.body.payload) {
+    try {
+      bodyData = typeof req.body.payload === 'string' ? JSON.parse(req.body.payload) : req.body.payload;
+    } catch {
+      bodyData = req.body;
+    }
+  } else if (req.body) {
+    bodyData = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+  }
+
+  const documents = bodyData.documents || {};
+
+  if (req.files) {
+    if (req.files.gst_certificate?.[0]) {
+      documents.gst_certificate = await processUploadedDocument(req.files.gst_certificate[0], 'gst_certificate');
+    }
+    if (req.files.pan_card?.[0]) {
+      documents.pan_card = await processUploadedDocument(req.files.pan_card[0], 'pan_card');
+    }
+    if (req.files.bank_statement?.[0]) {
+      documents.bank_statement = await processUploadedDocument(req.files.bank_statement[0], 'bank_statement');
+    }
+  }
+
+  for (const key of ['gst_certificate', 'pan_card', 'bank_statement']) {
+    if (documents[key] && (documents[key].path || documents[key].filePath)) {
+      documents[key] = await processUploadedDocument(documents[key], key);
+    }
+  }
+
+  bodyData.documents = documents;
+  return bodyData;
+}
+
+/**
+ * POST /api/underwriting/apply-public/:companySlug
+ * Public endpoint for merchants applying through a finance company's specific public shareable link.
+ * Accepts multipart files (gst_certificate, pan_card, bank_statement).
+ */
+router.post('/apply-public/:companySlug', documentUploadFields, async (req, res) => {
   try {
     const { companySlug } = req.params;
     if (!companySlug) {
@@ -172,13 +255,15 @@ router.post('/apply-public/:companySlug', async (req, res) => {
       });
     }
 
-    if (!req.body || typeof req.body !== 'object') {
+    const merchantPayload = await parseIncomingApplicationBody(req);
+
+    if (!merchantPayload || typeof merchantPayload !== 'object') {
       return res.status(400).json({ error: 'Invalid request payload.' });
     }
 
     // Validate GSTIN format & Mod-36 checksum if provided
-    if (req.body.gstin) {
-      const gstinVal = validateGSTIN(req.body.gstin);
+    if (merchantPayload.gstin) {
+      const gstinVal = validateGSTIN(merchantPayload.gstin);
       if (!gstinVal.valid) {
         return res.status(400).json({
           error: gstinVal.error,
@@ -191,7 +276,7 @@ router.post('/apply-public/:companySlug', async (req, res) => {
     const appData = {
       company_id: company.id,
       user_id: null,
-      merchant_data: req.body,
+      merchant_data: merchantPayload,
       status: 'pending_review'
     };
     const createdApp = await Application.create(appData);
@@ -261,16 +346,19 @@ router.post('/apply-public/:companySlug', async (req, res) => {
 /**
  * POST /api/underwriting/apply
  * Authenticated merchant loan application submission.
+ * Accepts multipart files (gst_certificate, pan_card, bank_statement).
  */
-router.post('/apply', requireAuth, async (req, res) => {
+router.post('/apply', requireAuth, documentUploadFields, async (req, res) => {
   try {
-    if (!req.body || typeof req.body !== 'object') {
+    const merchantPayload = await parseIncomingApplicationBody(req);
+
+    if (!merchantPayload || typeof merchantPayload !== 'object') {
       return res.status(400).json({ error: 'Invalid request payload' });
     }
 
     // Validate GSTIN format & Mod-36 checksum if provided
-    if (req.body.gstin) {
-      const gstinVal = validateGSTIN(req.body.gstin);
+    if (merchantPayload.gstin) {
+      const gstinVal = validateGSTIN(merchantPayload.gstin);
       if (!gstinVal.valid) {
         return res.status(400).json({
           error: gstinVal.error,
@@ -280,15 +368,15 @@ router.post('/apply', requireAuth, async (req, res) => {
     }
 
     let targetCompanyId = req.user.company_id || null;
-    if (req.body.company_slug) {
-      const comp = await Company.findBySlug(req.body.company_slug);
+    if (merchantPayload.company_slug) {
+      const comp = await Company.findBySlug(merchantPayload.company_slug);
       if (comp) targetCompanyId = comp.id;
     }
 
     const appData = {
       company_id: targetCompanyId,
       user_id: req.user.id,
-      merchant_data: req.body,
+      merchant_data: merchantPayload,
       status: 'pending_review'
     };
     const createdApp = await Application.create(appData);

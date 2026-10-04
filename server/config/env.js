@@ -50,5 +50,9 @@ export const config = {
   sqlitePath: process.env.SQLITE_PATH?.trim() || './data/verdika.sqlite',
   brevoApiKey: process.env.BREVO_API_KEY?.trim() || defaultBrevoKey,
   brevoFromEmail: process.env.BREVO_FROM_EMAIL?.trim() || 'udit129760@gmail.com',
-  brevoFromName: process.env.BREVO_FROM_NAME?.trim() || 'Verdika Security'
+  brevoFromName: process.env.BREVO_FROM_NAME?.trim() || 'Verdika Security',
+  razorpayKeyId: process.env.RAZORPAY_KEY_ID?.trim() || 'rzp_test_TjvZd0tOdLw6hS',
+  razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET?.trim() || 'xlnbJYQ0XolmYQyuKabhxBa7',
+  razorpayWebhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET?.trim() || 'verdika_rzp_webhook_secret_2026'
 };
+

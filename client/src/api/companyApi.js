@@ -100,10 +100,14 @@ export async function updateCompanySettings(settings) {
  */
 export async function submitPublicApplication(slug, payload) {
   try {
+    const isFormData = typeof FormData !== 'undefined' && payload instanceof FormData;
+    const headers = isFormData ? {} : { 'Content-Type': 'application/json' };
+    const body = isFormData ? payload : JSON.stringify(payload);
+
     const res = await fetch(`${API_BASE_URL}/underwriting/apply-public/${encodeURIComponent(slug)}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      headers,
+      body
     });
 
     const data = await res.json();

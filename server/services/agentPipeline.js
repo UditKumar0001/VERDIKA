@@ -5,7 +5,9 @@ import { AdversarialAgent } from '../agents/AdversarialAgent.js';
 import { DecisionRouter } from '../agents/DecisionRouter.js';
 import { ExplainerAgent } from '../agents/ExplainerAgent.js';
 import { parseBankStatementTransactions, SYNTHETIC_BASELINE_TRANSACTIONS } from './bankStatementParser.js';
+import { validateBankAccountRazorpay } from './razorpayBankValidationService.js';
 import { logger } from '../utils/logger.js';
+
 
 /**
  * AgentPipeline Service
@@ -76,12 +78,30 @@ export class AgentPipeline {
       (out) => `Data enriched and verified for ${applicationData.applicantName || applicationData.business_name || 'Applicant'} (${applicationData.data_source})`
     );
 
+    // 1.5 Auto-trigger Razorpay Fund Account Validation if bank details are present but unverified
+    const bankDetails = applicationData.bank_details || {};
+    if (bankDetails.account_number && bankDetails.ifsc && bankDetails.account_holder) {
+      if (!bankDetails.bank_verification || bankDetails.bank_verification.status === 'Not Attempted') {
+        try {
+          const bankVal = await validateBankAccountRazorpay(bankDetails);
+          applicationData.bank_details = {
+            ...bankDetails,
+            bank_verification: bankVal,
+            bankVerificationStatus: bankVal.status
+          };
+        } catch (bErr) {
+          logger.warn('[AgentPipeline] Bank validation error:', bErr.message);
+        }
+      }
+    }
+
     // 2. Document & KYC Verification Agent
     const docEval = await runAgentStep(
       this.docVerificationAgent,
       applicationData,
       (out) => `Document & KYC verification: ${out.status} - ${out.summary}`
     );
+
 
     // 3. Risk Assessment
     const riskEval = await runAgentStep(
