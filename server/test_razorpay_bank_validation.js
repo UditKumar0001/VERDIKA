@@ -81,9 +81,9 @@ async function testRazorpayBankValidation() {
   // Test 3: Partial Match Account
   console.log('--- TEST 3: Partial Match Bank Account (Minor Variation) ---');
   const partialRes = await validateBankAccountRazorpay({
-    account_number: '666666666666',
+    account_number: '7878787878787878',
     ifsc: 'HDFC0000060',
-    account_holder: 'Sunrise Digital Solutions'
+    account_holder: 'Sunrise Digital Commercial'
   });
   console.log('Partial Match Result:', {
     status: partialRes.status,
@@ -98,7 +98,7 @@ async function testRazorpayBankValidation() {
   // Test 4: Name Mismatch (No Match) Account
   console.log('--- TEST 4: Name Mismatch Account (No Match) ---');
   const mismatchRes = await validateBankAccountRazorpay({
-    account_number: '888888888888',
+    account_number: '7878787878787878',
     ifsc: 'HDFC0000060',
     account_holder: 'Apex Enterprise Pvt Ltd'
   });

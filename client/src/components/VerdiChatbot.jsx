@@ -83,12 +83,16 @@ export default function VerdiChatbot() {
         }
       ]);
     } catch (err) {
+      const displayMsg = (err?.message && err.message !== 'Failed to fetch' && !err.message.includes('fetch'))
+        ? err.message
+        : "Sorry, I'm having trouble connecting right now. Please try again.";
+
       setMessages((prev) => [
         ...prev,
         {
           id: Date.now() + 1,
           sender: 'verdi',
-          text: err.message || "Sorry, I'm having trouble connecting right now. Please try again.",
+          text: displayMsg,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         }
       ]);

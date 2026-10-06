@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { submitApplyApplication, validateBankAccountApi, checkFundAccountValidationStatusApi } from '../api/applicationApi';
+import { handleApiError } from '../api/config';
 
 import { submitPublicApplication } from '../api/companyApi';
 import { validateGSTIN, GSTIN_STATE_CODES } from '../utils/gstinValidator';
@@ -440,7 +441,7 @@ export default function NewApplication({ publicCompany = null }) {
         micr: '',
         ifsc_verified: false,
         ifsc_loading: false,
-        ifsc_error: err.message || 'Failed to fetch bank details for this IFSC.'
+        ifsc_error: handleApiError(err, 'Could not verify IFSC automatically. Please verify bank details.')
       }));
     }
   };
@@ -550,6 +551,7 @@ export default function NewApplication({ publicCompany = null }) {
 
       return res.status === 'Verified' || res.nameMatchResult === 'Partial Match';
     } catch (err) {
+      const errMsg = handleApiError(err, 'Penny-drop verification service unavailable. Please check details.');
       setBankVerification({
         status: 'Failed',
         nameMatchResult: 'No Match',
@@ -559,9 +561,9 @@ export default function NewApplication({ publicCompany = null }) {
         contactId: '',
         fundAccountId: '',
         validationId: '',
-        message: err.message || 'Penny-drop verification failed',
+        message: errMsg,
         loading: false,
-        error: err.message || 'Penny-drop verification failed'
+        error: errMsg
       });
       return false;
     }
@@ -899,7 +901,7 @@ export default function NewApplication({ publicCompany = null }) {
       }
       setResult(res);
     } catch (err) {
-      setError(err.message || 'Submission failed.');
+      setError(handleApiError(err, 'Unable to connect to underwriting server. Please check your network connection and try again.'));
     } finally {
       clearTimeout(t1);
       clearTimeout(t2);
@@ -1708,6 +1710,28 @@ export default function NewApplication({ publicCompany = null }) {
                 </div>
               )}
 
+              {/* Verification Unavailable (Could Not Reach Razorpay) */}
+              {bankVerification.status === 'Verification Unavailable' && (
+                <div
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    borderRadius: '8px',
+                    padding: '0.85rem 1rem',
+                    marginBottom: '1rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                    <span style={{ color: '#ef4444', fontWeight: '800', fontSize: '0.95rem' }}>
+                      ⚠️ Verification Unavailable — Could Not Reach Razorpay
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0, lineHeight: '1.4' }}>
+                    {bankVerification.message || 'Verification Unavailable — Could Not Reach Razorpay'}
+                  </p>
+                </div>
+              )}
+
               {/* Name Mismatch (No Match) */}
               {(bankVerification.status === 'Name Mismatch' || bankVerification.nameMatchResult === 'No Match') && (
                 <div
@@ -2218,7 +2242,11 @@ export default function NewApplication({ publicCompany = null }) {
                   <div className="checklist-info">
                     <div className="checklist-doc-title">
                       GST Registration Certificate
-                      {documents.gst_certificate && <span className="doc-verified-pill">Verified</span>}
+                      {documents.gst_certificate && (
+                        <span className="doc-attached-pill" style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.3)', padding: '2px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: 600, marginLeft: '8px' }}>
+                          File Attached
+                        </span>
+                      )}
                     </div>
                     <div className="checklist-doc-sub">
                       {documents.gst_certificate
@@ -2240,7 +2268,11 @@ export default function NewApplication({ publicCompany = null }) {
                   <div className="checklist-info">
                     <div className="checklist-doc-title">
                       Company / Signatory PAN Card
-                      {documents.pan_card && <span className="doc-verified-pill">Verified</span>}
+                      {documents.pan_card && (
+                        <span className="doc-attached-pill" style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.3)', padding: '2px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: 600, marginLeft: '8px' }}>
+                          File Attached
+                        </span>
+                      )}
                     </div>
                     <div className="checklist-doc-sub">
                       {documents.pan_card
@@ -2262,7 +2294,11 @@ export default function NewApplication({ publicCompany = null }) {
                   <div className="checklist-info">
                     <div className="checklist-doc-title">
                       Bank Statement (Last 6 Months)
-                      {documents.bank_statement && <span className="doc-verified-pill">Verified</span>}
+                      {documents.bank_statement && (
+                        <span className="doc-attached-pill" style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.3)', padding: '2px 8px', borderRadius: '12px', fontSize: '0.72rem', fontWeight: 600, marginLeft: '8px' }}>
+                          File Attached
+                        </span>
+                      )}
                     </div>
                     <div className="checklist-doc-sub">
                       {documents.bank_statement

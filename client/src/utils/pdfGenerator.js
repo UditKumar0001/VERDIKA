@@ -896,3 +896,260 @@ export function generateUnderwritingReportPDF(application, auditLogs = []) {
   doc.save(filename);
   return doc;
 }
+
+/**
+ * Generates and triggers download of a simplified, merchant-appropriate Application Summary PDF.
+ * Excludes internal underwriting signals (Risk Score, Confidence, Reason Codes, Adversarial Flags, Agent AI reasoning).
+ * File Name: my-application-<applicationId>.pdf
+ * 
+ * @param {Object} application - Application record including merchant_data, status, decision, etc.
+ */
+export function generateMerchantApplicationPDF(application) {
+  if (!application) return;
+
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const marginX = 14;
+  const contentWidth = pageWidth - marginX * 2; // 182 mm
+  let y = 14;
+
+  const parseObj = (data) => {
+    if (!data) return {};
+    if (typeof data === 'object') return data;
+    try {
+      return JSON.parse(data);
+    } catch {
+      return {};
+    }
+  };
+
+  const merchantData = parseObj(application.merchant_data);
+  const bankDetails = merchantData.bank_details || {};
+  const documents = merchantData.documents || {};
+
+  const businessName = merchantData.business_name || merchantData.businessName || 'Merchant Application';
+  const applicationId = application.id || 'APP-UNKNOWN';
+  const gstin = merchantData.gstin || 'N/A';
+
+  const formatDate = (isoString) => {
+    if (!isoString) return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    try {
+      const d = new Date(isoString);
+      return d.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    } catch {
+      return String(isoString);
+    }
+  };
+
+  const maskAccount = (acc) => {
+    if (!acc) return 'Not Provided';
+    const str = String(acc).trim();
+    if (str.length <= 4) return `XXXX-${str}`;
+    return `XXXX-XXXX-${str.slice(-4)}`;
+  };
+
+  // Decision & Status determination
+  const decisionStr = (application.decision || application.status || '').toLowerCase();
+  const isApproved = decisionStr.includes('approve') || decisionStr === 'auto_approve' || decisionStr === 'closed';
+  const isRejected = decisionStr.includes('reject') || decisionStr.includes('decline') || decisionStr === 'auto_reject';
+
+  const decisionLabel = isApproved
+    ? 'APPLICATION APPROVED'
+    : isRejected
+    ? 'APPLICATION DECLINED'
+    : 'APPLICATION UNDER REVIEW';
+
+  const decisionColor = isApproved
+    ? [16, 185, 129] // Emerald Green
+    : isRejected
+    ? [220, 38, 38] // Soft Red
+    : [217, 119, 6]; // Amber Yellow
+
+  const decisionBg = isApproved
+    ? [240, 253, 244]
+    : isRejected
+    ? [254, 242, 242]
+    : [255, 251, 235];
+
+  const statusMessage = isApproved
+    ? 'Congratulations! Your merchant credit application has been approved by the credit underwriting team.'
+    : isRejected
+    ? 'Your application has been declined following automated credit risk policy evaluation.'
+    : 'Your application is currently under active review by our underwriting team. No further action is required at this time.';
+
+  // Header Banner
+  doc.setFillColor(15, 23, 42); // Dark Navy Slate
+  doc.rect(marginX, y, contentWidth, 24, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(255, 255, 255);
+  doc.text('VERDIKA CREDIT INTELLIGENCE', marginX + 6, y + 10);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(148, 163, 184);
+  doc.text('Merchant Application Summary & Status Receipt', marginX + 6, y + 17);
+
+  y += 30;
+
+  // 1. Merchant & Application Details Header Card
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(marginX, y, contentWidth, 32, 2, 2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(30, 41, 59);
+  doc.text(businessName, marginX + 6, y + 8);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`GSTIN: ${gstin}`, marginX + 6, y + 16);
+  doc.text(`Application Date: ${formatDate(application.created_at || application.createdAt)}`, marginX + 6, y + 24);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(30, 41, 59);
+  doc.text(`Application ID: ${applicationId}`, marginX + contentWidth - 6, y + 8, { align: 'right' });
+
+  y += 38;
+
+  // 2. Decision & Status Banner (Large, Color-Coded)
+  doc.setFillColor(...decisionBg);
+  doc.setDrawColor(...decisionColor);
+  doc.setLineWidth(0.8);
+  doc.roundedRect(marginX, y, contentWidth, 26, 2, 2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(...decisionColor);
+  doc.text(decisionLabel, marginX + 6, y + 10);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(51, 65, 85);
+  const splitMsg = doc.splitTextToSize(statusMessage, contentWidth - 12);
+  doc.text(splitMsg, marginX + 6, y + 18);
+
+  y += 32;
+
+  // 3. Settlement Bank Details Section
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(30, 41, 59);
+  doc.text('Bank Settlement Account Details', marginX, y);
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.3);
+  doc.line(marginX, y + 2, pageWidth - marginX, y + 2);
+  y += 6;
+
+  const bankRows = [
+    ['Account Holder Name', bankDetails.account_holder || businessName],
+    ['Bank Account Number', maskAccount(bankDetails.account_number)],
+    ['Bank Name', bankDetails.bank_name || 'Commercial Bank']
+  ];
+
+  autoTable(doc, {
+    startY: y,
+    margin: { left: marginX, right: marginX },
+    body: bankRows,
+    theme: 'plain',
+    styles: { fontSize: 8.5, cellPadding: 2.5, textColor: [51, 65, 85] },
+    columnStyles: {
+      0: { cellWidth: 55, fontStyle: 'bold', textColor: [71, 85, 105] },
+      1: { cellWidth: 127 }
+    }
+  });
+
+  y = (doc.lastAutoTable?.finalY || y) + 8;
+
+  // 4. Document Submission Checklist Section (Submitted / Not Submitted ONLY)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(30, 41, 59);
+  doc.text('Submitted KYC Documents Checklist', marginX, y);
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.3);
+  doc.line(marginX, y + 2, pageWidth - marginX, y + 2);
+  y += 6;
+
+  const checkSubmitted = (docObj) => {
+    if (!docObj) return 'Not Submitted';
+    if (docObj.name || docObj.isUploaded || docObj.verified || docObj.file) return 'Submitted';
+    return 'Not Submitted';
+  };
+
+  const docRows = [
+    ['GST Registration Certificate', checkSubmitted(documents.gst_certificate)],
+    ['Company / Signatory PAN Card', checkSubmitted(documents.pan_card)],
+    ['Commercial Bank Statement (6 Months)', checkSubmitted(documents.bank_statement)]
+  ];
+
+  autoTable(doc, {
+    startY: y,
+    margin: { left: marginX, right: marginX },
+    head: [['Document Name', 'Submission Status']],
+    body: docRows,
+    theme: 'grid',
+    headStyles: {
+      fillColor: [15, 23, 42],
+      textColor: [255, 255, 255],
+      fontSize: 8,
+      fontStyle: 'bold',
+      cellPadding: 2.5
+    },
+    styles: {
+      fontSize: 8,
+      cellPadding: 2.5,
+      textColor: [51, 65, 85],
+      valign: 'middle'
+    },
+    columnStyles: {
+      0: { cellWidth: 120 },
+      1: { cellWidth: 62, fontStyle: 'bold' }
+    },
+    didParseCell: (data) => {
+      if (data.section === 'body' && data.column.index === 1) {
+        if (data.cell.raw === 'Submitted') {
+          data.cell.styles.textColor = [16, 185, 129];
+        } else {
+          data.cell.styles.textColor = [220, 38, 38];
+        }
+      }
+    }
+  });
+
+  y = (doc.lastAutoTable?.finalY || y) + 12;
+
+  // Footer / Page number
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.3);
+    doc.line(marginX, pageHeight - 12, pageWidth - marginX, pageHeight - 12);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(148, 163, 184);
+    doc.text('Verdika AI Credit Intelligence • Official Merchant Application Summary', marginX, pageHeight - 7);
+    doc.text(`Page ${i} of ${totalPages}`, pageWidth - marginX, pageHeight - 7, { align: 'right' });
+  }
+
+  const filename = `my-application-${applicationId}.pdf`;
+  doc.save(filename);
+  return doc;
+}

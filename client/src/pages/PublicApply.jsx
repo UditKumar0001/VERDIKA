@@ -33,7 +33,11 @@ export default function PublicApply() {
         }
       } catch (err) {
         if (isMounted) {
-          setError(err.message || 'Invalid or expired application link.');
+          const rawMsg = err?.message || '';
+          const cleanMsg = (rawMsg && rawMsg !== 'Failed to fetch' && !rawMsg.includes('fetch'))
+            ? rawMsg
+            : 'Invalid or expired application link.';
+          setError(cleanMsg);
           setCompany(null);
         }
       } finally {

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { fetchApplicationById, submitReviewDecision, requestApplicationInfo, checkFundAccountValidationStatusApi } from '../api/applicationApi';
+import { fetchApplicationById, submitReviewDecision, requestApplicationInfo, checkFundAccountValidationStatusApi, verifyPdfAccessApi } from '../api/applicationApi';
 
-import { generateUnderwritingReportPDF } from '../utils/pdfGenerator';
+import { generateUnderwritingReportPDF, generateMerchantApplicationPDF } from '../utils/pdfGenerator';
 import RiskExplainabilityChart from '../components/RiskExplainabilityChart';
 
 export default function ApplicationDetail() {
@@ -142,12 +142,22 @@ export default function ApplicationDetail() {
     }
   };
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
+    if (!application) return;
     try {
       setGeneratingPdf(true);
-      generateUnderwritingReportPDF(application, auditLogs);
+      // Backend authorization check (returns 403 Forbidden if merchant does not own application)
+      await verifyPdfAccessApi(application.id);
+
+      const userRole = user?.role || 'merchant';
+      if (userRole === 'merchant') {
+        generateMerchantApplicationPDF(application);
+      } else {
+        generateUnderwritingReportPDF(application, auditLogs);
+      }
     } catch (err) {
       console.error('PDF Generation Error:', err);
+      alert(err.message || 'Access denied: Unable to download application PDF.');
     } finally {
       setTimeout(() => setGeneratingPdf(false), 500);
     }
@@ -334,17 +344,34 @@ export default function ApplicationDetail() {
         </div>
 
         <div className="header-actions-group">
-          <button
-            type="button"
-            id="download-report-btn"
-            className="btn-download-report"
-            onClick={handleDownloadPdf}
-            disabled={generatingPdf}
-            title="Download full underwriting assessment report as PDF"
-          >
-            <span className="btn-icon">📥</span>
-            <span>{generatingPdf ? 'Generating PDF...' : 'Download Full Report (PDF)'}</span>
-          </button>
+          {user?.role === 'merchant' ? (
+            (!application.user_id || application.user_id === user?.id) && (
+              <button
+                type="button"
+                id="download-merchant-summary-btn"
+                className="btn-download-report"
+                onClick={handleDownloadPdf}
+                disabled={generatingPdf}
+                title="Download simplified merchant application summary as PDF"
+                style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', border: '1px solid rgba(16, 185, 129, 0.4)' }}
+              >
+                <span className="btn-icon">📄</span>
+                <span>{generatingPdf ? 'Generating PDF...' : 'Download Application Summary (PDF)'}</span>
+              </button>
+            )
+          ) : (
+            <button
+              type="button"
+              id="download-report-btn"
+              className="btn-download-report"
+              onClick={handleDownloadPdf}
+              disabled={generatingPdf}
+              title="Download full underwriting assessment report as PDF"
+            >
+              <span className="btn-icon">📥</span>
+              <span>{generatingPdf ? 'Generating PDF...' : 'Download Full Report (PDF)'}</span>
+            </button>
+          )}
 
           <div className="header-status-badge-container">
             {isClosed ? (
@@ -545,11 +572,19 @@ export default function ApplicationDetail() {
                         note = docStatus.reason || 'Needs Re-upload';
                       }
                     } else if (doc && (doc.name || doc.verified || doc.isUploaded)) {
-                      status = 'Clear';
-                      badgeClass = 'badge-doc-clear';
-                      iconClass = 'check-success';
-                      iconSymbol = '✓';
-                      note = doc.name ? `${doc.name}` : 'Verified & Readable';
+                      if (key === 'bank_details' || doc.verified === true) {
+                        status = 'Clear';
+                        badgeClass = 'badge-doc-clear';
+                        iconClass = 'check-success';
+                        iconSymbol = '✓';
+                        note = doc.name ? `${doc.name}` : 'Verified & Readable';
+                      } else {
+                        status = 'OCR Inconclusive';
+                        badgeClass = 'badge-review';
+                        iconClass = 'check-missing';
+                        iconSymbol = '⚠️';
+                        note = doc.name ? `${doc.name} (Pending Verification)` : 'Document Attached';
+                      }
                     }
 
                     return (

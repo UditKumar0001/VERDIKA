@@ -3,7 +3,7 @@
  * Connects to the backend underwriting pipeline, application store, and admin metrics.
  */
 
-import { API_BASE_URL, getAuthHeaders } from './config.js';
+import { API_BASE_URL, getAuthHeaders, handleApiError } from './config.js';
 
 export const fetchApplications = async (filters = {}) => {
   const params = new URLSearchParams();
@@ -23,7 +23,7 @@ export const fetchApplications = async (filters = {}) => {
 
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error || 'Failed to fetch applications');
+    throw new Error(data.error || 'Unable to retrieve applications.');
   }
   return data.applications || [];
 };
@@ -43,7 +43,7 @@ export const fetchMyApplications = async (filters = {}) => {
 
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error || 'Failed to fetch your applications');
+    throw new Error(data.error || 'Unable to retrieve your applications.');
   }
   return data.applications || [];
 };
@@ -57,7 +57,21 @@ export const fetchApplicationById = async (id) => {
 
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error || 'Failed to fetch application details');
+    throw new Error(data.error || 'Unable to retrieve application details.');
+  }
+  return data;
+};
+
+export const verifyPdfAccessApi = async (id) => {
+  const res = await fetch(`${API_BASE_URL}/underwriting/applications/${id}/pdf`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+    credentials: 'include'
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.error || 'Access denied: Unable to download application PDF.');
   }
   return data;
 };
@@ -120,7 +134,7 @@ export const fetchAdminMetrics = async () => {
 
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error || 'Failed to fetch metrics');
+    throw new Error(data.error || 'Unable to load analytics metrics.');
   }
   return data;
 };
@@ -207,7 +221,7 @@ export const fetchApplicationStatusApi = async (token) => {
 
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error || 'Failed to fetch application status');
+    throw new Error(data.error || 'Unable to retrieve application status.');
   }
   return data;
 };

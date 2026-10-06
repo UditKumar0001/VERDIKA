@@ -3,7 +3,7 @@
  * Wraps fetch calls to company endpoints using httpOnly cookies (credentials: 'include').
  */
 
-import { API_BASE_URL, getAuthHeaders, getAuthToken } from './config.js';
+import { API_BASE_URL, getAuthHeaders, getAuthToken, handleApiError } from './config.js';
 
 /**
  * Public listing of all active registered finance companies
@@ -21,7 +21,7 @@ export async function getPublicCompanies() {
     }
     return data;
   } catch (error) {
-    throw new Error(error.message || 'Failed to load lending companies.');
+    throw new Error(handleApiError(error, 'Failed to load lending companies.'));
   }
 }
 
@@ -42,7 +42,7 @@ export async function lookupCompanyBySlug(slug) {
     }
     return data;
   } catch (error) {
-    throw new Error(error.message || 'Invalid or expired application link.');
+    throw new Error(handleApiError(error, 'Invalid or expired application link.'));
   }
 }
 
@@ -64,7 +64,7 @@ export async function getMyCompany() {
     }
     return data;
   } catch (error) {
-    throw new Error(error.message || 'Failed to retrieve company profile.');
+    throw new Error(handleApiError(error, 'Failed to retrieve company profile.'));
   }
 }
 
@@ -88,7 +88,7 @@ export async function updateCompanySettings(settings) {
     }
     return data;
   } catch (error) {
-    throw new Error(error.message || 'Failed to update company settings.');
+    throw new Error(handleApiError(error, 'Failed to update company settings.'));
   }
 }
 
@@ -119,7 +119,7 @@ export async function submitPublicApplication(slug, payload) {
     }
     return data;
   } catch (error) {
-    throw new Error(error.message || 'Application submission failed.');
+    throw new Error(handleApiError(error, 'Application submission failed.'));
   }
 }
 

@@ -1,36 +1,48 @@
 /**
  * Chat API Client for Verdi AI Assistant
+ * Communicates with backend proxy endpoint (/api/verdi-chat)
  */
 
-import { API_BASE_URL } from './config.js';
+import { API_BASE_URL, getAuthHeaders, handleApiError } from './config.js';
 
 /**
  * Sends a chat message to Verdi AI backend
  * @param {string} message - Current user message
- * @param {Array} conversationHistory - Array of past messages [{ sender, text }]
+ * @param {Array} conversationHistory - Array of past messages [{ sender|role, text|content }]
+ * @param {Object} context - Optional application context for tenant-isolated response
  * @returns {Promise<string>} AI assistant response text
  */
-export async function sendVerdiMessage(message, conversationHistory = []) {
+export async function sendVerdiMessage(message, conversationHistory = [], context = null) {
   try {
     const res = await fetch(`${API_BASE_URL}/verdi-chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      credentials: 'include',
       body: JSON.stringify({
         message,
-        conversationHistory: conversationHistory.map(m => ({
-          sender: m.sender,
-          text: m.text
-        }))
+        conversationHistory: (conversationHistory || []).map(m => ({
+          role: (m.sender === 'user' || m.role === 'user') ? 'user' : 'model',
+          text: m.text || m.content || '',
+          content: m.text || m.content || ''
+        })),
+        context
       })
     });
 
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || 'Failed to communicate with Verdi.');
+    let data;
+    try {
+      data = await res.json();
+    } catch (parseErr) {
+      throw new Error("Server returned an invalid response. Please try again.");
     }
 
-    return data.reply;
+    if (!res.ok) {
+      throw new Error(data?.error || 'Failed to communicate with Verdi.');
+    }
+
+    return data.reply || "I'm having trouble responding right now, please try again.";
   } catch (error) {
-    throw new Error(error.message || "Sorry, I'm having trouble connecting right now. Please try again.");
+    const cleanMsg = handleApiError(error, "Sorry, I'm having trouble connecting right now. Please try again.");
+    throw new Error(cleanMsg);
   }
 }

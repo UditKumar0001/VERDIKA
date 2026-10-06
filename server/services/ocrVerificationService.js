@@ -1,13 +1,35 @@
+import fs from 'fs';
 import { createWorker } from 'tesseract.js';
 import { createRequire } from 'module';
 import { logger } from '../utils/logger.js';
 
 const require = createRequire(import.meta.url);
-let pdfParse = null;
+let PDFParseClass = null;
+let pdfParseFn = null;
 try {
-  pdfParse = require('pdf-parse');
+  const mod = require('pdf-parse');
+  if (mod.PDFParse) {
+    PDFParseClass = mod.PDFParse;
+  } else if (typeof mod === 'function') {
+    pdfParseFn = mod;
+  } else if (typeof mod.default === 'function') {
+    pdfParseFn = mod.default;
+  }
 } catch (e) {
   logger.warn('[OCR Service] pdf-parse load warning:', e.message);
+}
+
+async function extractPdfText(pdfBuffer) {
+  if (PDFParseClass) {
+    const parser = new PDFParseClass({ data: pdfBuffer });
+    await parser.load();
+    const textRes = await parser.getText();
+    return typeof textRes === 'string' ? textRes : (textRes?.text || '');
+  } else if (pdfParseFn) {
+    const parsed = await pdfParseFn(pdfBuffer);
+    return parsed?.text || '';
+  }
+  return '';
 }
 
 /**
@@ -109,19 +131,38 @@ export async function performDocOCR(docObj, docType = '', formData = {}) {
     return { text: '', confidence: 0, error: 'No document provided' };
   }
 
+  const docName = docObj.name || docObj.originalname || 'document';
+  const filePath = docObj.path || docObj.filePath || null;
+  logger.info(`[OCR Pipeline] >>> Invoking OCR for docType="${docType}", name="${docName}", path="${filePath || 'memory/base64'}"`);
+
   // If document already carries OCR results
   if (docObj.ocrRawText || docObj.ocrText) {
+    const resText = docObj.ocrRawText || docObj.ocrText || '';
+    const resConf = typeof docObj.ocrConfidence === 'number' ? docObj.ocrConfidence : 90;
+    logger.info(`[OCR Pipeline] <<< Returning pre-cached OCR results for ${docType}. Confidence: ${resConf}%, Snippet: "${resText.substring(0, 80).replace(/[\r\n]+/g, ' ')}"`);
     return {
-      text: docObj.ocrRawText || docObj.ocrText || '',
-      confidence: typeof docObj.ocrConfidence === 'number' ? docObj.ocrConfidence : 90
+      text: resText,
+      confidence: resConf,
+      method: 'CACHED_OCR'
     };
   }
 
-  let source = docObj.base64 || docObj.dataUrl || docObj.buffer || docObj.path;
+  let source = docObj.base64 || docObj.dataUrl || docObj.buffer || filePath;
 
-  // Handle PDF parsing if file is a PDF buffer / base64
-  const filename = docObj.name || '';
-  const isPdf = filename.toLowerCase().endsWith('.pdf') || docObj.type === 'application/pdf';
+  // Check if document already has extracted text from DocumentProcessor (e.g., pdf-parse during upload)
+  if (docObj.text && typeof docObj.text === 'string' && docObj.text.trim().length > 10) {
+    const textSnippet = docObj.text.trim().substring(0, 100).replace(/[\r\n]+/g, ' ');
+    logger.info(`[OCR Pipeline] <<< Using text pre-extracted by DocumentProcessor for ${docType}. Snippet: "${textSnippet}"`);
+    return {
+      text: docObj.text.trim(),
+      confidence: 98,
+      method: 'DOCUMENT_PROCESSOR_TEXT'
+    };
+  }
+
+  // Handle PDF parsing if file is a PDF buffer / base64 / disk file path
+  const filename = docName;
+  const isPdf = filename.toLowerCase().endsWith('.pdf') || docObj.type === 'application/pdf' || (filePath && filePath.toLowerCase().endsWith('.pdf'));
 
   if (isPdf && (docObj.buffer || source)) {
     try {
@@ -131,49 +172,62 @@ export async function performDocOCR(docObj, docType = '', formData = {}) {
           pdfBuffer = Buffer.from(source.split(',')[1], 'base64');
         } else if (source.startsWith('data:')) {
           pdfBuffer = Buffer.from(source.split(',')[1], 'base64');
+        } else if (fs.existsSync(source)) {
+          pdfBuffer = fs.readFileSync(source);
         }
       }
       if (pdfBuffer) {
-        const parsed = await pdfParse(pdfBuffer);
-        if (parsed && parsed.text && parsed.text.trim().length > 10) {
+        const text = await extractPdfText(pdfBuffer);
+        if (text && text.trim().length > 5) {
+          const textSnippet = text.trim().substring(0, 100).replace(/[\r\n]+/g, ' ');
+          logger.info(`[OCR Pipeline] <<< PDF parsing succeeded for ${docType}. Length: ${text.length} chars. Snippet: "${textSnippet}"`);
           return {
-            text: parsed.text.trim(),
+            text: text.trim(),
             confidence: 98,
             method: 'PDF_PARSER'
           };
         }
       }
     } catch (pdfErr) {
-      logger.warn('[OCR Service] PDF text extraction fallback to image OCR:', pdfErr.message);
+      logger.warn(`[OCR Pipeline] PDF text extraction failed for ${docType}, fallback to image OCR: ${pdfErr.message}`);
     }
   }
 
-  // If live binary image payload IS provided, run Tesseract.js
+  // If live binary image/file payload IS provided, run Tesseract.js
   if (source) {
     let worker = null;
     try {
       let imageBuffer = source;
-      if (typeof source === 'string' && source.startsWith('data:')) {
-        const base64Data = source.split(',')[1];
-        if (base64Data) {
-          imageBuffer = Buffer.from(base64Data, 'base64');
+      if (typeof source === 'string') {
+        if (source.startsWith('data:')) {
+          const base64Data = source.split(',')[1];
+          if (base64Data) {
+            imageBuffer = Buffer.from(base64Data, 'base64');
+          }
+        } else if (fs.existsSync(source)) {
+          imageBuffer = fs.readFileSync(source);
         }
       }
 
+      logger.info(`[OCR Pipeline] Starting Tesseract.js OCR engine for ${docType}...`);
       worker = await createWorker('eng');
       const { data } = await worker.recognize(imageBuffer);
       await worker.terminate();
 
+      const conf = Math.round(data.confidence || 0);
+      const textSnippet = (data.text || '').substring(0, 100).replace(/[\r\n]+/g, ' ');
+      logger.info(`[OCR Pipeline] <<< Tesseract.js OCR completed for ${docType}. Confidence: ${conf}%, Extracted Text Snippet: "${textSnippet}"`);
+
       return {
         text: data.text || '',
-        confidence: Math.round(data.confidence || 0),
+        confidence: conf,
         method: 'TESSERACT_OCR'
       };
     } catch (err) {
       if (worker) {
         try { await worker.terminate(); } catch (_) {}
       }
-      logger.error('[OCR Service] Tesseract recognition failed:', err.message);
+      logger.error(`[OCR Pipeline] Tesseract recognition failed for ${docType}: ${err.message}`);
       return { text: '', confidence: 0, error: err.message };
     }
   }
@@ -243,7 +297,7 @@ export async function verifyPanCardOCR(panDoc, formData = {}) {
   const isHighConfidence = confidence >= 60;
 
   if (!extractedPan || !isHighConfidence) {
-    return {
+    const res = {
       status: 'OCR Inconclusive',
       ocrStatus: 'OCR Inconclusive',
       ocrExtractedValue: extractedPan || 'Not Found',
@@ -256,6 +310,8 @@ export async function verifyPanCardOCR(panDoc, formData = {}) {
       mismatchDetected: false,
       inconclusive: true
     };
+    logger.info(`[OCR Pipeline] PAN Card Result: OCR Inconclusive (extractedPan="${extractedPan || 'NONE'}", conf=${confidence}%)`);
+    return res;
   }
 
   // Cross-verify against form PAN or embedded GSTIN PAN
@@ -264,6 +320,7 @@ export async function verifyPanCardOCR(panDoc, formData = {}) {
   const isVerifiedMatch = matchesFormPan && matchesEmbeddedPan;
 
   if (isVerifiedMatch) {
+    logger.info(`[OCR Pipeline] PAN Card Result: Verified Match! Extracted="${extractedPan}" matches form/GSTIN PAN`);
     return {
       status: 'Verified Match',
       ocrStatus: 'Verified Match',
@@ -279,6 +336,7 @@ export async function verifyPanCardOCR(panDoc, formData = {}) {
     };
   } else {
     const expected = formPan || embeddedGstinPan;
+    logger.info(`[OCR Pipeline] PAN Card Result: MISMATCH DETECTED! Extracted="${extractedPan}" vs Expected="${expected}"`);
     return {
       status: 'Mismatch Detected',
       ocrStatus: 'Mismatch Detected',
@@ -308,6 +366,7 @@ export async function verifyGstCertificateOCR(gstDoc, formData = {}) {
   const isHighConfidence = confidence >= 60;
 
   if (!extractedGstin || !isHighConfidence) {
+    logger.info(`[OCR Pipeline] GST Certificate Result: OCR Inconclusive (extractedGstin="${extractedGstin || 'NONE'}", conf=${confidence}%)`);
     return {
       status: 'OCR Inconclusive',
       ocrStatus: 'OCR Inconclusive',
@@ -326,6 +385,7 @@ export async function verifyGstCertificateOCR(gstDoc, formData = {}) {
   const isVerifiedMatch = formGstin ? extractedGstin === formGstin : true;
 
   if (isVerifiedMatch) {
+    logger.info(`[OCR Pipeline] GST Certificate Result: Verified Match! Extracted="${extractedGstin}" matches form GSTIN`);
     return {
       status: 'Verified Match',
       ocrStatus: 'Verified Match',
@@ -338,6 +398,7 @@ export async function verifyGstCertificateOCR(gstDoc, formData = {}) {
       inconclusive: false
     };
   } else {
+    logger.info(`[OCR Pipeline] GST Certificate Result: MISMATCH DETECTED! Extracted="${extractedGstin}" vs Expected="${formGstin}"`);
     return {
       status: 'Mismatch Detected',
       ocrStatus: 'Mismatch Detected',

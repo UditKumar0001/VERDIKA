@@ -191,6 +191,49 @@ router.get('/applications/:id', requireAuth, async (req, res) => {
 });
 
 /**
+ * GET /api/underwriting/applications/:id/pdf
+ * Authorization check endpoint for application PDF report generation/downloads.
+ * Verifies that a merchant requesting a PDF report genuinely owns the application (user_id match).
+ * Returns 403 Forbidden if attempting to access another merchant's report.
+ */
+router.get('/applications/:id/pdf', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const application = await Application.findById(id);
+    if (!application) {
+      return res.status(404).json({ error: 'Application not found.' });
+    }
+
+    const userRole = req.user?.role || 'merchant';
+    const userCompanyId = req.user?.company_id || req.user?.companyId;
+
+    // Authorization Check:
+    if (userRole === 'merchant') {
+      if (application.user_id && application.user_id !== req.user.id) {
+        logger.warn(`[PDF Auth Blocked] Merchant ID ${req.user.id} attempted to access application PDF ${id} owned by user ${application.user_id}`);
+        return res.status(403).json({ error: 'Access denied: You can only access PDF reports for your own applications.' });
+      }
+    } else if (['underwriter', 'admin', 'risk_officer', 'viewer', 'finance_company'].includes(userRole)) {
+      if (userCompanyId && application.company_id && application.company_id !== userCompanyId) {
+        return res.status(403).json({ error: 'Access denied: Application belongs to another company.' });
+      }
+    } else {
+      return res.status(403).json({ error: 'Forbidden: Access denied.' });
+    }
+
+    return res.json({
+      status: 'authorized',
+      applicationId: application.id,
+      role: userRole,
+      message: 'PDF access authorized.'
+    });
+  } catch (error) {
+    logger.error(`[PDF Authorization Check ${req.params.id} Error]:`, error);
+    return res.status(500).json({ error: 'Failed to verify PDF authorization.' });
+  }
+});
+
+/**
  * POST /api/underwriting/apply-public/:companySlug
 /**
  * Helper to process payload & multipart uploaded files

@@ -2,6 +2,35 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { logger } from '../utils/logger.js';
 
 /**
+ * Smart contextual fallback when Gemini API key is unconfigured, rate-limited, or unavailable.
+ */
+function getContextualFallbackResponse(userMessage, context = null) {
+  const msg = String(userMessage || '').toLowerCase();
+
+  if (context && typeof context === 'object') {
+    let details = `Your application (${context.applicationId || 'current'}) is currently "${context.status || 'under review'}".`;
+    if (context.decision) details += ` Verdict: ${context.decision}.`;
+    if (context.routingReason) details += ` Note: ${context.routingReason}.`;
+    return details;
+  }
+
+  if (msg.includes('risk') || msg.includes('score')) {
+    return "Verdi's AI evaluates credit risk using a multi-agent pipeline combining bank statement cashflow, GST checksum validation, and adversarial fraud detection. Scores range from 0.0 (lowest risk) to 1.0 (highest risk).";
+  }
+  if (msg.includes('document') || msg.includes('upload') || msg.includes('pan') || msg.includes('gst') || msg.includes('statement')) {
+    return "To complete your application, please provide: 1) GST Registration Certificate, 2) Company/Proprietor PAN Card, and 3) 6-month PDF Bank Statement.";
+  }
+  if (msg.includes('approval') || msg.includes('time') || msg.includes('long') || msg.includes('fast')) {
+    return "Automated AI underwriting approvals complete in under 30 seconds for healthy applications. Applications routed to human review are typically processed within 24 hours.";
+  }
+  if (msg.includes('status') || msg.includes('pending') || msg.includes('application')) {
+    return "You can check your application status on your merchant dashboard or tracking link. Let me know if you need help with a specific Application ID.";
+  }
+
+  return "Hello! I am Verdi, your AI underwriting assistant. I can help answer questions about credit application requirements, risk scoring, bank verification, and approval timelines. What would you like to know?";
+}
+
+/**
  * Gets chatbot response using Google Generative AI SDK (@google/generative-ai)
  * Handles contextual prompts, tenant data isolation, and rate-limit / API fallback.
  * 
@@ -36,9 +65,10 @@ export async function getChatbotResponse(userMessage, conversationHistory = [], 
     }
   }
 
-  if (!apiKey) {
-    logger.warn('[VerdiChat]: GEMINI_API_KEY not configured.');
-    return "I'm having trouble responding right now, please try again.";
+  // If no API key or invalid format, use smart contextual fallback
+  if (!apiKey || apiKey.startsWith('<') || apiKey.length < 20) {
+    logger.info('[VerdiChat]: Valid GEMINI_API_KEY not found in environment, using contextual fallback.');
+    return getContextualFallbackResponse(cleanMessage, context);
   }
 
   try {
@@ -62,15 +92,13 @@ export async function getChatbotResponse(userMessage, conversationHistory = [], 
       validHistory = [];
     }
 
-    // Limit history length to last 8 turns for performance
     if (validHistory.length > 8) {
       validHistory = validHistory.slice(-8);
       const subIdx = validHistory.findIndex((m) => m.role === 'user');
       if (subIdx !== -1) validHistory = validHistory.slice(subIdx);
     }
 
-    // Try models in order: gemini-2.0-flash, gemini-2.0-flash-exp, gemini-1.5-flash, gemini-1.5-flash-latest, gemini-pro
-    const modelsToTry = ["gemini-2.0-flash", "gemini-2.0-flash-exp", "gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-pro"];
+    const modelsToTry = ["gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.7-flash", "gemini-2.5-flash", "gemini-flash-latest"];
     let lastError = null;
 
     for (const modelName of modelsToTry) {
@@ -110,12 +138,12 @@ export async function getChatbotResponse(userMessage, conversationHistory = [], 
     }
 
     if (lastError) {
-      logger.error('[VerdiChat Gemini API Error]:', lastError);
+      logger.warn('[VerdiChat Gemini API Fallback]:', lastError.message);
     }
-    return "I'm having trouble responding right now, please try again.";
+    return getContextualFallbackResponse(cleanMessage, context);
   } catch (error) {
-    logger.error('[VerdiChat Error]:', error);
-    return "I'm having trouble responding right now, please try again.";
+    logger.warn('[VerdiChat Error]:', error.message);
+    return getContextualFallbackResponse(cleanMessage, context);
   }
 }
 

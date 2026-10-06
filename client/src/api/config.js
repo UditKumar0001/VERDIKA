@@ -47,4 +47,19 @@ export const getAuthHeaders = (extraHeaders = {}) => {
   return headers;
 };
 
+export const handleApiError = (error, defaultMsg = 'Unable to connect to server. Please try again.') => {
+  if (!error) return defaultMsg;
+  const msg = typeof error === 'string' ? error : error.message;
+  if (
+    !msg ||
+    msg.toLowerCase().includes('failed to fetch') ||
+    msg.toLowerCase().includes('networkerror') ||
+    msg.toLowerCase().includes('typeerror') ||
+    msg.toLowerCase().includes('load failed')
+  ) {
+    return defaultMsg;
+  }
+  return msg;
+};
+
 export default API_BASE_URL;

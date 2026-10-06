@@ -54,23 +54,9 @@ app.use((req, res, next) => {
 
 // Health check endpoints (Publicly accessible without authentication)
 app.get(['/api/health', '/health'], async (req, res) => {
-  let companiesCount = 0;
-  let isDbConnected = false;
-  try {
-    const row = await db.get('SELECT COUNT(*) as count FROM companies');
-    companiesCount = row?.count != null ? Number(row.count) : 0;
-    isDbConnected = true;
-  } catch (err) {
-    logger.warn('[Health Check] DB query failed:', err.message);
-  }
-
   res.json({
     status: 'ok',
     message: 'Backend is running',
-    database: isPostgres ? 'postgresql' : 'sqlite',
-    isPersistent: isPostgres,
-    dbConnected: isDbConnected,
-    companiesCount,
     timestamp: new Date().toISOString()
   });
 });

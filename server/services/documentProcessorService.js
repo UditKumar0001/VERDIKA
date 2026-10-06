@@ -109,6 +109,7 @@ export async function processUploadedDocument(fileOrDoc, fieldName = 'document')
     rawText: text,
     isCorrupted,
     isReadable: !isCorrupted,
-    verified: !isCorrupted
+    qualityPassed: !isCorrupted,
+    verified: false
   };
 }
