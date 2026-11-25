@@ -4,19 +4,19 @@
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  /* Color Palette - Modern Fintech Dark Slate */
-  --bg-primary: #0a0e17;
-  --bg-secondary: #111827;
-  --bg-card: #161f30;
-  --bg-card-hover: #1c273c;
-  --bg-input: #0e1626;
+  /* Color Palette - Neumorphism Dark Slate */
+  --bg-primary: #1a202c;
+  --bg-secondary: #1e2533;
+  --bg-card: #1e2533;
+  --bg-card-hover: #232b3b;
+  --bg-input: #171d28;
 
   --text-main: #f3f4f6;
   --text-muted: #94a3b8;
   --text-dim: #64748b;
 
-  --border-subtle: #1e293b;
-  --border-card: #273549;
+  --border-subtle: rgba(255, 255, 255, 0.04);
+  --border-card: rgba(255, 255, 255, 0.05);
   --border-focus: #3b82f6;
 
   --accent-blue: #3b82f6;
@@ -40,14 +40,15 @@
   --status-pending-bg: rgba(99, 102, 241, 0.12);
   --status-pending-border: rgba(99, 102, 241, 0.35);
 
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 4px 4px 8px #11151d, -4px -4px 8px #273041;
+  --shadow-md: 7px 7px 14px #10141c, -7px -7px 14px #283142;
+  --shadow-lg: 12px 12px 24px #0e1219, -12px -12px 24px #2a3446;
+  --shadow-inset: inset 4px 4px 8px #11151d, inset -4px -4px 8px #273041;
   --shadow-glow: 0 0 20px rgba(59, 130, 246, 0.15);
 
-  --navbar-bg: rgba(10, 15, 29, 0.85);
-  --navbar-border: rgba(255, 255, 255, 0.07);
-  --navbar-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+  --navbar-bg: rgba(26, 32, 44, 0.88);
+  --navbar-border: rgba(255, 255, 255, 0.05);
+  --navbar-shadow: 6px 6px 14px #10141c, -6px -6px 14px #283142;
 }
 /* Peek height for sticky stack */
 :root {
@@ -81,19 +82,19 @@
 }
 
 [data-theme="light"] {
-  /* Color Palette - Clean Light Fintech */
-  --bg-primary: #f8fafc;
-  --bg-secondary: #ffffff;
-  --bg-card: #ffffff;
-  --bg-card-hover: #f1f5f9;
-  --bg-input: #f8fafc;
+  /* Color Palette - Neumorphism Soft Light */
+  --bg-primary: #e6ebf2;
+  --bg-secondary: #e6ebf2;
+  --bg-card: #e6ebf2;
+  --bg-card-hover: #ecf0f6;
+  --bg-input: #e6ebf2;
 
   --text-main: #0f172a;
   --text-muted: #475569;
   --text-dim: #64748b;
 
-  --border-subtle: #e2e8f0;
-  --border-card: #cbd5e1;
+  --border-subtle: rgba(255, 255, 255, 0.5);
+  --border-card: rgba(255, 255, 255, 0.6);
   --border-focus: #2563eb;
 
   --accent-blue: #2563eb;
@@ -117,14 +118,15 @@
   --status-pending-bg: rgba(79, 70, 229, 0.1);
   --status-pending-border: rgba(79, 70, 229, 0.3);
 
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-sm: 4px 4px 8px #c5ccd6, -4px -4px 8px #ffffff;
+  --shadow-md: 8px 8px 16px #c2c9d4, -8px -8px 16px #ffffff;
+  --shadow-lg: 12px 12px 24px #bec5d0, -12px -12px 24px #ffffff;
+  --shadow-inset: inset 4px 4px 8px #c5ccd6, inset -4px -4px 8px #ffffff;
   --shadow-glow: 0 0 20px rgba(37, 99, 235, 0.12);
 
-  --navbar-bg: rgba(255, 255, 255, 0.88);
-  --navbar-border: rgba(226, 232, 240, 0.8);
-  --navbar-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 10px 25px -5px rgba(15, 23, 42, 0.04);
+  --navbar-bg: rgba(230, 235, 242, 0.9);
+  --navbar-border: rgba(255, 255, 255, 0.6);
+  --navbar-shadow: 6px 6px 14px #c2c9d4, -6px -6px 14px #ffffff;
 }
 
 * {
@@ -170,6 +172,7 @@ button {
 
 input, select, textarea {
   font-family: inherit;
+  box-shadow: var(--shadow-inset);
 }
 
 .main-content {
