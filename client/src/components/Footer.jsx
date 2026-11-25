@@ -200,11 +200,6 @@ export default function Footer() {
               <Link to="/compliance" className="footer-legal-link">Regulatory Disclosures</Link>
             </div>
           </div>
-
-          <div className="footer-buildathon-tag">
-            <img src={razorpayLogo} alt="Razorpay Logo" className="buildathon-tag-icon" />
-            <span>Built for the Razorpay AI Buildathon</span>
-          </div>
         </div>
 
       </div>
