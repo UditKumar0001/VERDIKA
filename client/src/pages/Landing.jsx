@@ -800,10 +800,10 @@ export default function Landing() {
                   />
                   <div>
                     <div style={{ fontSize: '0.72rem', color: '#64748b', fontFamily: 'var(--font-mono)' }}>APP #VRD-8492</div>
-                    <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>Kaveri Textiles &bull; ₹12,00,000</div>
+                    <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a' }}>Kaveri Textiles &bull; ₹12,00,000</div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', fontSize: '0.88rem', color: '#334155' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', fontSize: '1rem', color: '#334155' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.45rem' }}>
                     <span style={{ color: '#64748b' }}>Risk Score</span>
                     <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>0.38 (Moderate)</span>
@@ -820,7 +820,7 @@ export default function Landing() {
               </div>
 
               <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', background: '#f1f5f9', padding: '0.6rem 0.9rem', fontSize: '0.72rem', fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#475569' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', background: '#f1f5f9', padding: '0.75rem 1rem', fontSize: '0.82rem', fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#475569' }}>
                   <span>RULE</span>
                   <span>MEASURED</span>
                   <span>ACTION</span>
@@ -830,7 +830,7 @@ export default function Landing() {
                   { rule: '14d Spike', val: '+34%', act: 'Flag', color: '#d97706' },
                   { rule: 'Routing', val: 'Flagged', act: 'Human Queue', color: '#4f46e5' }
                 ].map((r) => (
-                  <div key={r.rule} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '0.65rem 0.9rem', borderTop: '1px solid #f1f5f9', fontSize: '0.82rem', fontFamily: 'var(--font-mono)' }}>
+                  <div key={r.rule} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', padding: '0.75rem 1rem', borderTop: '1px solid #f1f5f9', fontSize: '0.95rem', fontFamily: 'var(--font-mono)' }}>
                     <span style={{ color: '#0f172a', fontWeight: 600 }}>{r.rule}</span>
                     <span style={{ color: '#475569' }}>{r.val}</span>
                     <span style={{ color: r.color, fontWeight: 700 }}>{r.act}</span>
@@ -844,12 +844,12 @@ export default function Landing() {
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
-                  <th style={{ padding: '1rem 1.25rem', color: '#475569', fontWeight: 600, fontSize: '0.85rem' }}>Capability</th>
-                  <th style={{ padding: '1rem 1.25rem', color: '#475569', fontWeight: 600, fontSize: '0.85rem' }}>Legacy Rules / Black-Box ML</th>
-                  <th style={{ padding: '1rem 1.25rem', color: '#4f46e5', fontWeight: 700, fontSize: '0.85rem' }}>Verdika</th>
+                  <th style={{ padding: '1rem 1.25rem', color: '#475569', fontWeight: 700, fontSize: '1rem' }}>Capability</th>
+                  <th style={{ padding: '1rem 1.25rem', color: '#475569', fontWeight: 700, fontSize: '1rem' }}>Legacy Rules / Black-Box ML</th>
+                  <th style={{ padding: '1rem 1.25rem', color: '#4f46e5', fontWeight: 700, fontSize: '1rem' }}>Verdika</th>
                 </tr>
               </thead>
-              <tbody style={{ fontSize: '0.9rem', color: '#0f172a' }}>
+              <tbody style={{ fontSize: '1.02rem', color: '#0f172a' }}>
                 <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
                   <td style={{ padding: '0.95rem 1.25rem', fontWeight: 600 }}>Decision Reasoning</td>
                   <td style={{ padding: '0.95rem 1.25rem', color: '#64748b' }}>Opaque score without factor breakdown</td>
