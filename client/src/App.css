@@ -8052,3 +8052,9 @@
   transform: translateY(-3px);
   box-shadow: 12px 12px 24px #bec5d0, -12px -12px 24px #ffffff !important;
 }
+
+/* PublicApply (/apply/:companySlug) Fixed Navbar Clearance */
+.public-apply-page,
+.public-apply-container {
+  padding-top: 6rem !important;
+}
