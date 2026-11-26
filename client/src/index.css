@@ -206,4 +206,5 @@ h1, h2, h3, h4, .landing-title, .section-title {
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
+  padding-top: 5.5rem;
 }
