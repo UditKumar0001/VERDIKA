@@ -14,6 +14,15 @@ function getContextualFallbackResponse(userMessage, context = null) {
     return details;
   }
 
+  if (msg.includes('bank') || msg.includes('verification') || msg.includes('penny') || msg.includes('razorpay')) {
+    return "Verdika verifies merchant bank accounts in real time using Razorpay Fund Account Validation (penny-drop), confirming account ownership, IFSC validity, and active status alongside 6-month PDF bank statement cash-flow parsing.";
+  }
+  if (msg.includes('dscr') || msg.includes('cashflow') || msg.includes('cash flow')) {
+    return "Verdika calculates DSCR (Debt Service Coverage Ratio) from your 6-month bank statement by comparing net monthly operating cash flow against total debt obligations. A DSCR above 1.25 typically passes automated underwriting.";
+  }
+  if (msg.includes('fraud') || msg.includes('spike') || msg.includes('adversarial')) {
+    return "Verdika's AdversarialAgent audits 6-month statements for pre-application revenue spikes (e.g., +34% in the last 14 days), round-number deposits, and refund smoothing. Flagged applications are routed to a human underwriter.";
+  }
   if (msg.includes('risk') || msg.includes('score')) {
     return "Verdi's AI evaluates credit risk using a multi-agent pipeline combining bank statement cashflow, GST checksum validation, and adversarial fraud detection. Scores range from 0.0 (lowest risk) to 1.0 (highest risk).";
   }
