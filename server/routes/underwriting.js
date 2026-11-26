@@ -486,7 +486,20 @@ router.get('/my-applications', requireAuth, async (req, res) => {
     const userId = req.user.id;
     const { status } = req.query;
 
-    const rawApps = await Application.findAll({ user_id: userId, status });
+    let rawApps = await Application.findAll({ user_id: userId, status });
+    if (req.user?.email) {
+      const allApps = await Application.findAll({ status });
+      const userEmail = req.user.email.trim().toLowerCase();
+      const seen = new Set(rawApps.map(a => a.id));
+      for (const app of allApps) {
+        if (seen.has(app.id)) continue;
+        const appEmail = String(app.applicant_email || app.merchant_data?.email || '').trim().toLowerCase();
+        if (appEmail && appEmail === userEmail) {
+          rawApps.push(app);
+          seen.add(app.id);
+        }
+      }
+    }
 
     const applications = rawApps.map(app => {
       const merchantData = app.merchant_data || {};
