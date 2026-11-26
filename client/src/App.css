@@ -8013,3 +8013,42 @@
 
 
 
+
+/* ==========================================================================
+   Find a Lender (CompanySelector) - Neumorphic UI + Fixed Navbar Clearance
+   ========================================================================== */
+.company-selector-page {
+  background: #e6ebf2 !important;
+  min-height: 100vh;
+  padding-top: 7.5rem !important;
+}
+
+.company-selector-hero {
+  background: transparent !important;
+  padding-top: 2rem !important;
+}
+
+.company-search-wrapper input,
+.company-search-input {
+  background: #e6ebf2 !important;
+  border: none !important;
+  border-radius: 14px !important;
+  box-shadow: inset 4px 4px 8px #c5ccd6, inset -4px -4px 8px #ffffff !important;
+}
+
+.company-card,
+.company-directory-card,
+.lender-card {
+  background: #e6ebf2 !important;
+  border: none !important;
+  border-radius: 20px !important;
+  box-shadow: 8px 8px 16px #c2c9d4, -8px -8px 16px #ffffff !important;
+  transition: transform 0.25s ease, box-shadow 0.25s ease !important;
+}
+
+.company-card:hover,
+.company-directory-card:hover,
+.lender-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 12px 12px 24px #bec5d0, -12px -12px 24px #ffffff !important;
+}
