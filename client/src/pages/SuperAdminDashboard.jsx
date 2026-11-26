@@ -519,12 +519,18 @@ export default function SuperAdminDashboard() {
               const res = await fetch(`${API_BASE_URL}/admin/hashed-documents-export`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {}
               });
+              if (!res.ok) {
+                alert('Failed to download Hashed Ledger. Please try again.');
+                return;
+              }
               const blob = await res.blob();
               const url = window.URL.createObjectURL(blob);
               const a = document.createElement('a');
               a.href = url;
               a.download = 'superadmin_hashed_documents.csv';
+              document.body.appendChild(a);
               a.click();
+              a.remove();
               window.URL.revokeObjectURL(url);
             }}
           >
