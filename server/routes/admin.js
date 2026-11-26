@@ -4,6 +4,8 @@ import { syntheticDataService } from '../services/syntheticDataService.js';
 import { db } from '../config/db.js';
 import { Application } from '../models/Application.js';
 import { logger } from '../utils/logger.js';
+import { getHashedLedgerPath } from '../services/documentHashLedgerService.js';
+import fs from 'fs';
 
 const router = Router();
 
@@ -72,6 +74,20 @@ router.post('/generate-data', requireAuth, async (req, res) => {
     logger.error('[Admin Generate Data Error]:', error);
     res.status(500).json({ error: 'Failed to generate synthetic data.' });
   }
+});
+
+/**
+ * GET /api/admin/hashed-documents-export
+ * Downloads the irreversible SHA-256 hashed document ledger as an Excel-compatible CSV.
+ */
+router.get('/hashed-documents-export', (req, res) => {
+  const ledgerPath = getHashedLedgerPath();
+  if (!fs.existsSync(ledgerPath)) {
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="superadmin_hashed_documents.csv"');
+    return res.send('timestamp,application_id,company_id,gstin_sha256,pan_sha256,bank_sha256,document_sha256\n');
+  }
+  return res.download(ledgerPath, 'superadmin_hashed_documents.csv');
 });
 
 export default router;
