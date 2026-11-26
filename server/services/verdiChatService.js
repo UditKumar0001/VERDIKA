@@ -113,7 +113,7 @@ export async function getChatbotResponse(userMessage, conversationHistory = [], 
       if (subIdx !== -1) validHistory = validHistory.slice(subIdx);
     }
 
-    const modelsToTry = ["gemini-2.5-flash", "gemini-flash-latest"];
+    const modelsToTry = ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-flash-lite-latest", "gemini-flash-latest"];
     let lastError = null;
 
     for (const modelName of modelsToTry) {
@@ -142,9 +142,18 @@ export async function getChatbotResponse(userMessage, conversationHistory = [], 
           return "Rate limit reached or server busy. Please wait a moment and try again.";
         }
 
-        // If 404 / model unavailable error, try next model in loop
-        if (errStr.includes('404') || errStr.includes('not found') || errStr.includes('no longer available')) {
-          logger.info(`[VerdiChat]: Model ${modelName} unavailable, falling back to next model...`);
+        // If 404 / 503 / model unavailable / high demand, try next model in loop
+        if (
+          errStr.includes('404') ||
+          errStr.includes('503') ||
+          errStr.includes('500') ||
+          errStr.includes('unavailable') ||
+          errStr.includes('high demand') ||
+          errStr.includes('overloaded') ||
+          errStr.includes('not found') ||
+          errStr.includes('no longer available')
+        ) {
+          logger.info(`[VerdiChat]: Model ${modelName} unavailable (${errStr.slice(0, 60)}), falling back to next model...`);
           continue;
         }
 
