@@ -125,14 +125,7 @@ export default function PublicApply() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span className="badge badge-approved" style={{ fontSize: '0.72rem' }}>
-            ✓ Verified Finance Company
-          </span>
-        </div>
-      </div>
-
-      {/* Render the Full Application Wizard */}
+        {/* Render the Full Application Wizard */}
       <NewApplication publicCompany={company} />
     </div>
   );
