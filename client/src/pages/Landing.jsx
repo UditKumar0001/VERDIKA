@@ -122,7 +122,7 @@ export default function Landing() {
           gap: '2.5rem',
           alignItems: 'center',
           textAlign: 'left',
-          padding: '7.5rem max(2rem, calc(50% - 620px)) 4rem',
+          padding: '9.5rem max(2rem, calc(50% - 620px)) 4.5rem',
           width: '100%',
           maxWidth: '100%',
           minHeight: '100vh',
@@ -130,12 +130,12 @@ export default function Landing() {
         }}
       >
         <div>
-          <h1 className="landing-title" style={{ textAlign: 'left', fontSize: 'clamp(2rem, 3.6vw, 3.1rem)', lineHeight: 1.12, marginBottom: '1.1rem' }}>
+          <h1 className="landing-title" style={{ textAlign: 'left', fontSize: 'clamp(2.5rem, 4.2vw, 3.6rem)', lineHeight: 1.1, marginBottom: '1.25rem' }}>
             Underwrite SME Loans <br />
             <span style={{ color: '#4f46e5' }}>for Build-First Teams</span>
           </h1>
 
-          <p className="landing-subtitle" style={{ textAlign: 'left', margin: '0 0 1.75rem', maxWidth: '520px', fontSize: '1rem', fontWeight: 600 }}>
+          <p className="landing-subtitle" style={{ textAlign: 'left', margin: '0 0 1.75rem', maxWidth: '520px', fontSize: '1.12rem', fontWeight: 600 }}>
             Built for NBFCs and commercial lenders. Upload a merchant&apos;s GSTIN and 6-month bank PDF to get automated DSCR scoring, Razorpay bank verification, fraud-spike flags, and a signed decision report.
           </p>
 
