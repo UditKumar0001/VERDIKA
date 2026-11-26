@@ -529,7 +529,7 @@ export default function SuperAdminDashboard() {
             }}
           >
             Hashed Ledger (CSV)
-            </Link>
+          </button>
           </div>
         </div>
 
