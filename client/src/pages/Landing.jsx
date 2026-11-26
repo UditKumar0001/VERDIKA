@@ -242,7 +242,7 @@ export default function Landing() {
             background: '#f8fafc',
             border: '1px solid #e2e8f0',
             borderRadius: '20px',
-            padding: '2rem',
+            padding: '3rem',
             textAlign: 'left',
             color: '#0f172a'
           }}
@@ -252,7 +252,7 @@ export default function Landing() {
               <h2 style={{ fontSize: '1.75rem', fontWeight: 800, fontFamily: 'var(--font-heading)', margin: 0, color: '#0f172a' }}>
                 Verdika Architecture
               </h2>
-              <p style={{ fontSize: '0.82rem', color: '#64748b', margin: '0.2rem 0 0' }}>
+              <p style={{ fontSize: '0.98rem', color: '#64748b', margin: '0.3rem 0 0' }}>
                 End-to-end underwriting flow from merchant submission to signed audit report.
               </p>
             </div>
@@ -276,11 +276,11 @@ export default function Landing() {
               { title: 'AI Assistant (Verdi)', tags: ['GEMINI', 'POLICY Q&A'] },
               { title: 'REST API & Webhooks', tags: ['JSON', 'SIGNED PDF'] }
             ].map((node) => (
-              <div key={node.title} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '0.85rem 1rem' }}>
-                <div style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.45rem' }}>{node.title}</div>
+              <div key={node.title} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.1rem 1.25rem' }}>
+                <div style={{ fontSize: '0.98rem', fontWeight: 700, marginBottom: '0.5rem' }}>{node.title}</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
                   {node.tags.map((t) => (
-                    <span key={t} style={{ fontSize: '0.65rem', fontFamily: 'var(--font-mono)', padding: '0.15rem 0.45rem', borderRadius: '4px', background: '#f1f5f9', color: '#475569', fontWeight: 600 }}>
+                    <span key={t} style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', padding: '0.2rem 0.55rem', borderRadius: '4px', background: '#f1f5f9', color: '#475569', fontWeight: 600 }}>
                       {t}
                     </span>
                   ))}
@@ -292,7 +292,7 @@ export default function Landing() {
           {/* Layer 2: API Layer */}
           <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '0.75rem', margin: '0.5rem 0 1.25rem' }}>
             {['POST /api/applications', 'RAZORPAY PENNY-DROP', 'POST /api/verdi-chat'].map((ep) => (
-              <span key={ep} style={{ background: '#4f46e5', color: '#ffffff', fontFamily: 'var(--font-mono)', fontSize: '0.7rem', fontWeight: 600, padding: '0.35rem 0.9rem', borderRadius: '999px' }}>
+              <span key={ep} style={{ background: '#4f46e5', color: '#ffffff', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', fontWeight: 600, padding: '0.45rem 1.1rem', borderRadius: '999px' }}>
                 {ep}
               </span>
             ))}
@@ -331,7 +331,7 @@ export default function Landing() {
                 className="arch-visual-card"
                 style={{
                   position: 'relative',
-                  height: '160px',
+                  height: '220px',
                   borderRadius: '12px',
                   border: card.border,
                   overflow: 'hidden',
@@ -344,8 +344,8 @@ export default function Landing() {
                 }}
               >
                 <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.92rem', fontWeight: 700, color: '#ffffff' }}>{card.title}</span>
-                  <span style={{ fontSize: '0.66rem', fontFamily: 'var(--font-mono)', padding: '0.2rem 0.5rem', borderRadius: '4px', background: card.badgeBg, color: card.badgeColor, fontWeight: 700 }}>
+                  <span style={{ fontSize: '1.08rem', fontWeight: 700, color: '#ffffff' }}>{card.title}</span>
+                  <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', padding: '0.25rem 0.6rem', borderRadius: '4px', background: card.badgeBg, color: card.badgeColor, fontWeight: 700 }}>
                     {card.badge}
                   </span>
                 </div>
@@ -359,9 +359,9 @@ export default function Landing() {
               { name: 'SQLite / PostgreSQL', sub: 'Applications & Audit Logs' },
               { name: 'Brevo / Gmail SMTP', sub: '2FA OTP & Decision Alerts' }
             ].map((db) => (
-              <div key={db.name} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '0.75rem 1.25rem', minWidth: '220px' }}>
-                <div style={{ fontSize: '0.85rem', fontWeight: 700 }}>{db.name}</div>
-                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{db.sub}</div>
+              <div key={db.name} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1rem 1.5rem', minWidth: '250px' }}>
+                <div style={{ fontSize: '0.98rem', fontWeight: 700 }}>{db.name}</div>
+                <div style={{ fontSize: '0.85rem', color: '#64748b' }}>{db.sub}</div>
               </div>
             ))}
           </div>
