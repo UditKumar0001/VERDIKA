@@ -249,7 +249,7 @@ export default function Landing() {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.75rem' }}>
             <div>
-              <h2 style={{ fontSize: '1.4rem', fontWeight: 700, fontFamily: 'var(--font-heading)', margin: 0, color: '#0f172a' }}>
+              <h2 style={{ fontSize: '1.75rem', fontWeight: 800, fontFamily: 'var(--font-heading)', margin: 0, color: '#0f172a' }}>
                 Verdika Architecture
               </h2>
               <p style={{ fontSize: '0.82rem', color: '#64748b', margin: '0.2rem 0 0' }}>
@@ -1037,7 +1037,7 @@ export default function Landing() {
           Verdika integrates seamlessly with your lending stack and data sources.
         </p>
         <div className="marquee-strip-wrapper" style={{ background: 'transparent', border: 'none', boxShadow: 'none', padding: 0 }}>
-          <div className="marquee-strip-track" style={{ gap: '2.5rem', alignItems: 'center', animationDuration: '14s' }}>
+          <div className="marquee-strip-track" style={{ gap: '3.5rem', alignItems: 'center', animationDuration: '14s' }}>
             {[
               {
                 name: 'Node.js',
@@ -1191,8 +1191,9 @@ export default function Landing() {
                   key={idx}
                   title={tech.name}
                   style={{
-                    width: '44px',
-                    height: '44px',
+                    width: '68px',
+                    height: '68px',
+                    transform: 'scale(1.65)',
                     background: 'transparent',
                     border: 'none',
                     display: 'inline-flex',
