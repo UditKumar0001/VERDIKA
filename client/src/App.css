@@ -2,21 +2,34 @@
    Verdika Design System & Component Styles
    ========================================================================== */
 
-/* Navbar Styles */
+/* Navbar Styles (Floating Pill) */
 .navbar {
-  background-color: var(--navbar-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--navbar-border);
-  box-shadow: var(--navbar-shadow);
-  position: sticky;
-  top: 0;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
+  position: fixed;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 9999; /* ensure navbar stays above sticky sections */
-  width: 100%;
+  width: calc(100% - 2rem);
+  max-width: 1280px;
+  margin: 0;
   transition: background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
               border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              backdrop-filter 0.3s ease;
+              box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.navbar .nav-link,
+.navbar .btn-secondary,
+.navbar .new-app-btn,
+.navbar .navbar-links a {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  font-size: 0.76rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
 }
 
 .navbar.navbar-scrolled {
@@ -28,7 +41,7 @@
 .navbar-container {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 0.75rem 2.25rem;
+  padding: 0.45rem 2rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -318,22 +331,33 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 3rem 1.5rem;
+  padding: 6.5rem 1.5rem 3rem;
   flex: 1;
-  background: radial-gradient(circle at 50% 20%, rgba(59, 130, 246, 0.08) 0%, transparent 60%);
+  background: #e6ebf2;
 }
 
 .auth-card {
   width: 100%;
   max-width: 440px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-card);
-  border-radius: 12px;
-  padding: 2.25rem;
-  box-shadow: var(--shadow-lg);
+  background: #e6ebf2;
+  border: none;
+  border-radius: 24px;
+  padding: 2.5rem;
+  box-shadow: 12px 12px 24px #c2c9d4, -12px -12px 24px #ffffff;
+}
+
+.auth-card input {
+  background: #e6ebf2 !important;
+  border: none !important;
+  border-radius: 12px !important;
+  box-shadow: inset 4px 4px 8px #c5ccd6, inset -4px -4px 8px #ffffff !important;
 }
 
 .auth-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
   text-align: center;
   margin-bottom: 1.75rem;
 }
@@ -851,13 +875,13 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-indigo) 100%);
+  background: var(--accent-blue);
   color: #fff;
   font-weight: 600;
   font-size: 0.92rem;
   padding: 0.65rem 1.25rem;
   border-radius: 8px;
-  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
+  box-shadow: var(--shadow-sm);
   cursor: pointer;
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease, filter 0.2s ease;
 }
@@ -2304,9 +2328,9 @@
   border-radius: 8px;
   font-weight: 600;
   font-size: 0.88rem;
-  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-indigo) 100%);
+  background: var(--accent-blue);
   color: #fff;
-  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.3);
+  box-shadow: var(--shadow-sm);
   transition: opacity 0.15s ease;
 }
 
@@ -2946,9 +2970,7 @@
 }
 
 .hero-gradient-text {
-  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-cyan) 50%, var(--accent-indigo) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--accent-blue);
 }
 
 .landing-subtitle {
@@ -3380,13 +3402,47 @@
    Footer Component Styles
    ========================================================================== */
 .footer {
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--border-subtle);
+  background: #1b172b;
+  color: #ffffff;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
   position: relative;
   padding: 3.5rem 2rem 2rem;
   margin-top: auto;
   width: 100%;
   box-sizing: border-box;
+}
+
+.footer .footer-strip-title,
+.footer .footer-col-title,
+.footer .brand-name {
+  color: #ffffff;
+  -webkit-text-fill-color: #ffffff;
+}
+
+.footer .footer-strip-sub,
+.footer .footer-link,
+.footer .footer-copyright-text,
+.footer .footer-legal-link,
+.footer p {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.footer .footer-link:hover,
+.footer .footer-legal-link:hover {
+  color: #ffffff;
+}
+
+.footer .footer-top-strip {
+  background: #064e3b !important;
+  border-color: #065f46 !important;
+}
+
+.footer .footer-top-strip .footer-strip-title {
+  color: #ffffff !important;
+}
+
+.footer .footer-top-strip .footer-strip-sub {
+  color: rgba(255, 255, 255, 0.85) !important;
 }
 
 .footer::before {

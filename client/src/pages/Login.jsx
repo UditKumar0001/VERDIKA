@@ -220,7 +220,7 @@ export default function Login() {
           <>
             <div className="auth-header">
               <img src="/logo.png" alt="Verdika Logo" className="auth-logo-img" />
-              <div className="auth-badge">Verdika Risk Engine</div>
+
               <h2>Sign In to Verdika</h2>
               <p className="auth-subtitle">Access the autonomous multi-agent underwriting platform</p>
             </div>

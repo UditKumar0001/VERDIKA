@@ -169,7 +169,7 @@ export default function Footer() {
             <span className="footer-col-title">Company</span>
             <Link to="/about" className="footer-link">About Us</Link>
             <Link to="/blog" className="footer-link">Risk Intelligence Blog</Link>
-            <Link to="/careers" className="footer-link">Careers <span className="footer-badge-hiring">Hiring</span></Link>
+            <Link to="/careers" className="footer-link">Careers</Link>
             <a href="mailto:support@verdika.com?subject=Enterprise%20Inquiry%20-%20Verdika%20Risk%20Engine" className="footer-link">Contact Sales</a>
             <Link to="/security" className="footer-link">Security &amp; Compliance</Link>
           </div>

@@ -119,16 +119,6 @@ export default function Navbar() {
 
         {/* Right Authentication & Settings Cluster */}
         <div className="navbar-auth">
-          {/* Theme Toggle Button */}
-          <button
-            onClick={toggleTheme}
-            className="theme-toggle-btn"
-            title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Mode`}
-            aria-label="Toggle visual theme"
-          >
-            {theme === 'dark' ? '☀️' : '🌙'}
-          </button>
-
           {isAuthenticated ? (
             /* User Profile Chip */
             <div className="user-profile-chip">
