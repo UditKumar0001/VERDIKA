@@ -116,7 +116,7 @@ export default function Landing() {
         className="landing-hero"
         style={{
           backgroundColor: '#d1d5db',
-          borderRadius: '0 0 72px 72px',
+          borderRadius: '0 0 110px 110px',
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
           gap: '2.5rem',
