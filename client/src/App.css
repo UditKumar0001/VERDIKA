@@ -3406,7 +3406,7 @@
   color: #ffffff;
   border-top: 1px solid rgba(255, 255, 255, 0.12);
   position: relative;
-  padding: 5.5rem 2rem 3.5rem;
+  padding: 7rem 2rem 5rem;
   margin-top: auto;
   width: 100%;
   box-sizing: border-box;
@@ -3425,6 +3425,26 @@
 .footer .footer-legal-link,
 .footer p {
   color: rgba(255, 255, 255, 0.85);
+}
+
+.footer .footer-link {
+  font-size: 1rem;
+}
+
+.footer .footer-col-title {
+  font-size: 0.9rem;
+}
+
+.footer .footer-strip-title {
+  font-size: 1.1rem;
+}
+
+.footer .footer-strip-sub {
+  font-size: 0.95rem;
+}
+
+.footer .footer-copyright-text {
+  font-size: 0.92rem;
 }
 
 .footer .footer-link:hover,
