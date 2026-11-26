@@ -135,7 +135,7 @@ export default function Landing() {
             <span style={{ color: '#4f46e5' }}>for Build-First Teams</span>
           </h1>
 
-          <p className="landing-subtitle" style={{ textAlign: 'left', margin: '0 0 1.75rem', maxWidth: '520px', fontSize: '0.8rem', fontWeight: 600 }}>
+          <p className="landing-subtitle" style={{ textAlign: 'left', margin: '0 0 1.75rem', maxWidth: '520px', fontSize: '1rem', fontWeight: 600 }}>
             Built for NBFCs and commercial lenders. Upload a merchant&apos;s GSTIN and 6-month bank PDF to get automated DSCR scoring, Razorpay bank verification, fraud-spike flags, and a signed decision report.
           </p>
 
@@ -249,7 +249,7 @@ export default function Landing() {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.75rem' }}>
             <div>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, fontFamily: 'var(--font-heading)', margin: 0, color: '#0f172a' }}>
+              <h2 style={{ fontSize: '1.4rem', fontWeight: 700, fontFamily: 'var(--font-heading)', margin: 0, color: '#0f172a' }}>
                 Verdika Architecture
               </h2>
               <p style={{ fontSize: '0.82rem', color: '#64748b', margin: '0.2rem 0 0' }}>
@@ -375,7 +375,7 @@ export default function Landing() {
           marginBottom: '2.5rem',
           background: 'radial-gradient(circle at 22% 62%, rgba(139, 92, 246, 0.42), transparent 46%), radial-gradient(circle at 78% 68%, rgba(45, 212, 191, 0.34), transparent 46%), #161224',
           borderRadius: '0 0 32px 32px',
-          padding: '4rem max(2rem, calc(50% - 620px))',
+          padding: '5.5rem max(2rem, calc(50% - 620px))',
           textAlign: 'center',
           color: '#f8fafc',
           border: '1px solid rgba(255, 255, 255, 0.12)',
@@ -392,7 +392,7 @@ export default function Landing() {
           <form
             onSubmit={handleAskVerdi}
             style={{
-              maxWidth: '760px',
+              maxWidth: '880px',
               margin: '0 auto',
               background: 'rgba(255, 255, 255, 0.04)',
               border: '1px solid rgba(255, 255, 255, 0.16)',
@@ -469,7 +469,7 @@ export default function Landing() {
           {verdiReply && (
             <div
               style={{
-                maxWidth: '760px',
+                maxWidth: '880px',
                 margin: '1.25rem auto 0',
                 padding: '1.1rem 1.25rem',
                 borderRadius: '14px',
@@ -534,7 +534,7 @@ export default function Landing() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '1.5rem' }}>
           {[
             {
               title: 'Modular underwriting, zero shelfware',
@@ -585,7 +585,7 @@ export default function Landing() {
                   color: '#ffffff',
                   borderRadius: '16px',
                   padding: '2rem',
-                  minHeight: '165px',
+                  minHeight: '210px',
                   display: 'flex',
                   alignItems: 'center',
                   textAlign: 'left',
@@ -624,7 +624,7 @@ export default function Landing() {
                   >
                     {card.icon}
                   </div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 700, fontFamily: 'var(--font-heading)', lineHeight: 1.25 }}>
+                  <div style={{ fontSize: '1.45rem', fontWeight: 700, fontFamily: 'var(--font-heading)', lineHeight: 1.25 }}>
                     {card.title}
                   </div>
                 </div>
@@ -693,7 +693,7 @@ export default function Landing() {
             </div>
           </div>
 
-          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '0.98rem', lineHeight: 1.7, color: '#0f172a', margin: 0 }}>
+          <p style={{ fontFamily: 'var(--font-mono)', fontSize: '1.08rem', lineHeight: 1.7, color: '#0f172a', margin: 0 }}>
             Verdika nails the balance between user-friendly UI and powerful logic. We have underwriters who can understand the logic and make adjustments as needed, while developers can extend it.
           </p>
         </div>
