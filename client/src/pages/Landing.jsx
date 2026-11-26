@@ -375,17 +375,18 @@ export default function Landing() {
           marginBottom: '2.5rem',
           background: 'radial-gradient(circle at 22% 62%, rgba(139, 92, 246, 0.42), transparent 46%), radial-gradient(circle at 78% 68%, rgba(45, 212, 191, 0.34), transparent 46%), #161224',
           borderRadius: '0 0 32px 32px',
-          padding: '5.5rem max(2rem, calc(50% - 620px))',
+          padding: '7.5rem max(2rem, calc(50% - 620px))',
+          minHeight: '520px',
           textAlign: 'center',
           color: '#f8fafc',
           border: '1px solid rgba(255, 255, 255, 0.12)',
           boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 20px 50px rgba(79, 70, 229, 0.22)'
         }}
       >
-          <h2 style={{ fontSize: 'clamp(1.75rem, 3vw, 2.5rem)', fontWeight: 700, marginBottom: '0.75rem', color: '#ffffff' }}>
+          <h2 style={{ fontSize: 'clamp(2.2rem, 3.8vw, 3.1rem)', fontWeight: 700, marginBottom: '0.9rem', color: '#ffffff' }}>
             Build with AI. <span style={{ color: '#2dd4bf' }}>Decide with certainty.</span>
           </h2>
-          <p style={{ color: '#cbd5e1', fontSize: '0.98rem', maxWidth: '640px', margin: '0 auto 2rem', lineHeight: 1.6 }}>
+          <p style={{ color: '#cbd5e1', fontSize: '1.12rem', maxWidth: '700px', margin: '0 auto 2.25rem', lineHeight: 1.6 }}>
             See how Verdika evaluates credit risk. Pick an example below or ask Verdi your own underwriting question.
           </p>
 
@@ -413,9 +414,9 @@ export default function Landing() {
                 outline: 'none',
                 color: '#f8fafc',
                 fontFamily: 'var(--font-mono)',
-                fontSize: '0.95rem',
+                fontSize: '1.08rem',
                 resize: 'none',
-                marginBottom: '1rem'
+                marginBottom: '1.25rem'
               }}
             />
 
@@ -437,7 +438,7 @@ export default function Landing() {
                       border: '1px solid rgba(255, 255, 255, 0.2)',
                       background: 'rgba(255, 255, 255, 0.04)',
                       color: '#e2e8f0',
-                      fontSize: '0.8rem',
+                      fontSize: '0.9rem',
                       cursor: 'pointer'
                     }}
                   >
@@ -455,8 +456,8 @@ export default function Landing() {
                   background: '#4f46e5',
                   color: '#ffffff',
                   fontWeight: 600,
-                  fontSize: '0.85rem',
-                  letterSpacing: '0.03em',
+                  fontSize: '0.95rem',
+                  letterSpacing: '0.04em',
                   cursor: verdiLoading ? 'wait' : 'pointer',
                   opacity: verdiLoading ? 0.7 : 1
                 }}
