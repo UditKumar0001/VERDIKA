@@ -122,7 +122,7 @@ export default function Landing() {
           gap: '2.5rem',
           alignItems: 'center',
           textAlign: 'left',
-          padding: '9.5rem max(2rem, calc(50% - 620px)) 4.5rem',
+          padding: '2.5rem max(2rem, calc(50% - 620px)) 4.5rem',
           width: '100%',
           maxWidth: '100%',
           minHeight: '100vh',
