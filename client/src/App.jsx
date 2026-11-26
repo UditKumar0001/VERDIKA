@@ -11,6 +11,7 @@ import './App.css';
 // Pages
 import Landing from './pages/Landing';
 import Login from './pages/Login';
+import ResetPassword from './pages/ResetPassword';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import ApplicationDetail from './pages/ApplicationDetail';
@@ -42,6 +43,7 @@ function App() {
               {/* Public Routes */}
               <Route path="/" element={<Landing />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/signup" element={<Signup />} />
               <Route path="/apply" element={<CompanySelector />} />
               <Route path="/apply/:companySlug" element={<PublicApply />} />

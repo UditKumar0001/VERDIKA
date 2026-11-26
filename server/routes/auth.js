@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/env.js';
 import { User } from '../models/User.js';
+import { db } from '../config/db.js';
 import { Company } from '../models/Company.js';
 import { CompanyInvite } from '../models/CompanyInvite.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
@@ -309,7 +310,7 @@ router.post('/accept-invite', authLimiter, async (req, res) => {
   }
 });
 
-import { sendOtpEmail } from '../services/notificationService.js';
+import { sendOtpEmail, sendEmail } from '../services/notificationService.js';
 import { Otp, SERVER_BOOT_TIME } from '../models/Otp.js';
 
 /**
@@ -628,6 +629,82 @@ router.get('/me', requireAuth, async (req, res) => {
   } catch (error) {
     logger.error('[Auth Me Error]:', error);
     return res.status(500).json({ error: 'Failed to retrieve session profile.' });
+  }
+});
+
+
+/**
+ * POST /api/auth/forgot-password
+ * Sends a 15-minute password reset link to the user's registered email.
+ */
+router.post('/forgot-password', authLimiter, async (req, res) => {
+  try {
+    const cleanEmail = String(req.body?.email || '').trim().toLowerCase();
+    if (!cleanEmail) {
+      return res.status(400).json({ error: 'Email address is required.' });
+    }
+
+    const user = await User.findByEmail(cleanEmail);
+    if (user) {
+      const resetToken = jwt.sign(
+        { id: user.id, email: user.email, type: 'password_reset' },
+        config.jwtSecret,
+        { expiresIn: '15m' }
+      );
+      const origin = req.headers.origin || config.clientOrigin || 'http://localhost:5173';
+      const resetUrl = `${origin}/reset-password?token=${encodeURIComponent(resetToken)}`;
+
+      sendEmail({
+        to: user.email,
+        subject: 'Reset your Verdika password',
+        html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:24px;">
+          <h2>Reset your Verdika password</h2>
+          <p>Click the button below to set a new password. This link expires in 15 minutes.</p>
+          <p style="margin:24px 0;"><a href="${resetUrl}" style="background:#4f46e5;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Reset Password</a></p>
+          <p style="font-size:12px;color:#64748b;">If you did not request this, you can safely ignore this email.</p>
+        </div>`,
+        text: `Reset your Verdika password: ${resetUrl}`
+      }).catch((err) => logger.error('[Forgot Password Email Error]:', err));
+    }
+
+    return res.json({
+      message: `Password reset instructions have been sent to ${cleanEmail}. Please check your inbox.`
+    });
+  } catch (error) {
+    logger.error('[Forgot Password Error]:', error);
+    return res.status(500).json({ error: 'Failed to process password reset request.' });
+  }
+});
+
+/**
+ * POST /api/auth/reset-password
+ * Verifies the reset token and updates the user's password.
+ */
+router.post('/reset-password', authLimiter, async (req, res) => {
+  try {
+    const { token, newPassword } = req.body || {};
+    if (!token || !newPassword || String(newPassword).length < 6) {
+      return res.status(400).json({ error: 'Valid reset token and a password of at least 6 characters are required.' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, config.jwtSecret);
+    } catch {
+      return res.status(401).json({ error: 'Reset link has expired or is invalid. Please request a new one.' });
+    }
+
+    if (decoded.type !== 'password_reset' || !decoded.id) {
+      return res.status(401).json({ error: 'Invalid reset token.' });
+    }
+
+    const passwordHash = await bcrypt.hash(String(newPassword), 10);
+    await db.run('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, decoded.id]);
+
+    return res.json({ message: 'Password updated successfully. You can now sign in.' });
+  } catch (error) {
+    logger.error('[Reset Password Error]:', error);
+    return res.status(500).json({ error: 'Failed to reset password.' });
   }
 });
 
