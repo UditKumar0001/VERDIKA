@@ -32,6 +32,7 @@
     "multer": "^2.4.0",
     "nodemailer": "^9.1.0",
     "pdf-parse": "^2.4.5",
+    "pdfkit": "^0.21.0",
     "pg": "^8.23.0",
     "razorpay": "^2.9.8",
     "resend": "^6.25.0",

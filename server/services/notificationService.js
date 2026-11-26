@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import PDFDocument from 'pdfkit';
 import { Notification } from '../models/Notification.js';
 import { logger } from '../utils/logger.js';
 import { config } from '../config/env.js';
@@ -40,7 +41,8 @@ export async function sendEmail({
   text,
   fromEmail,
   fromName,
-  requestId
+  requestId,
+  attachments = []
 }) {
   const reqTag = requestId ? `[${requestId}]` : '[EMAIL]';
   const senderEmail = fromEmail || config.brevoFromEmail || process.env.BREVO_FROM_EMAIL || 'udit129760@gmail.com';
@@ -70,6 +72,12 @@ export async function sendEmail({
         htmlContent: html,
         textContent: text || ''
       };
+      if (attachments && attachments.length > 0) {
+        brevoPayload.attachment = attachments.map((a) => ({
+          name: a.filename,
+          content: Buffer.isBuffer(a.content) ? a.content.toString('base64') : Buffer.from(a.content).toString('base64')
+        }));
+      }
 
       const response = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
@@ -321,6 +329,56 @@ Track real-time status online at: ${statusUrl}
 /**
  * Sends decision notification email to merchant and logs audit event
  */
+/**
+ * Generates a PDF decision report buffer explaining why the application was accepted, rejected, or routed for review.
+ */
+export function generateDecisionPdfBuffer({ application, decision, customNotes = '' }) {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ margin: 50 });
+      const chunks = [];
+      doc.on('data', (c) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      const businessName = application?.merchant_data?.business_name || application?.business_name || 'Merchant';
+      const appId = application?.id || 'N/A';
+      const normDecision = String(decision || '').toLowerCase();
+      let statusLabel = 'UNDER REVIEW';
+      if (normDecision.includes('approve')) statusLabel = 'APPROVED';
+      else if (normDecision.includes('reject') || normDecision.includes('decline')) statusLabel = 'REJECTED';
+
+      const reason =
+        customNotes ||
+        application?.routing_reason ||
+        application?.decision_reason ||
+        (statusLabel === 'APPROVED'
+          ? 'Your application met all automated financial, cash-flow, and verification thresholds.'
+          : statusLabel === 'REJECTED'
+          ? formatPoliteRejectionReason(application, customNotes)
+          : 'Your application has been routed to an underwriter for manual review of supporting documents.');
+
+      doc.fontSize(20).fillColor('#1e1b2e').text('Verdika Underwriting Decision Report');
+      doc.moveDown(0.5);
+      doc.fontSize(10).fillColor('#64748b').text(`Generated: ${new Date().toUTCString()}`);
+      doc.moveDown(1.5);
+
+      doc.fontSize(12).fillColor('#0f172a').text(`Application ID: ${appId}`);
+      doc.text(`Business Name: ${businessName}`);
+      doc.text(`Decision Status: ${statusLabel}`);
+      doc.moveDown(1.2);
+
+      doc.fontSize(13).fillColor('#4f46e5').text('Clarified Decision Reason');
+      doc.moveDown(0.4);
+      doc.fontSize(11).fillColor('#334155').text(String(reason), { lineGap: 4 });
+
+      doc.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 export async function sendDecisionNotification({ application, decision, customNotes = '' }) {
   const { subject, html, text, recipientEmail } = formatDecisionEmail({ application, decision, customNotes });
   const appId = application.id || 'N/A';
