@@ -98,8 +98,6 @@ export default function PublicApply() {
 
   return (
     <div>
-      {/* Branded Banner for Public Merchant Application */}
-      <div
       {/* Render the Full Application Wizard */}
       <NewApplication publicCompany={company} />
     </div>
