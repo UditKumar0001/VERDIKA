@@ -1033,7 +1033,7 @@ export default function Landing() {
 
       {/* Integrations / Tech Stack Circular Logo Marquee */}
       <div style={{ width: '100%', padding: '1rem 0 2rem', textAlign: 'center', overflow: 'hidden' }}>
-        <p style={{ fontSize: '1.25rem', fontWeight: 700, fontFamily: 'var(--font-heading)', color: 'var(--text-main)', marginBottom: '1.5rem' }}>
+        <p style={{ fontSize: '2.25rem', fontWeight: 800, fontFamily: 'var(--font-heading)', color: 'var(--text-main)', marginBottom: '1.5rem' }}>
           Verdika integrates seamlessly with your lending stack and data sources.
         </p>
         <div className="marquee-strip-wrapper" style={{ background: 'transparent', border: 'none', boxShadow: 'none', padding: 0 }}>
