@@ -100,32 +100,7 @@ export default function PublicApply() {
     <div>
       {/* Branded Banner for Public Merchant Application */}
       <div
-        className="public-tenant-banner"
-        style={{
-          background: 'linear-gradient(90deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%)',
-          borderBottom: '1px solid var(--accent-blue)',
-          padding: '0.85rem 1.5rem',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          position: 'sticky',
-          top: 0,
-          zIndex: 40
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <span style={{ fontSize: '1.25rem' }}>🏦</span>
-          <div>
-            <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', fontWeight: '700' }}>
-              Applying for Commercial Merchant Credit Line with
-            </div>
-            <div style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--accent-cyan)' }}>
-              {company.name}
-            </div>
-          </div>
-        </div>
-
-        {/* Render the Full Application Wizard */}
+      {/* Render the Full Application Wizard */}
       <NewApplication publicCompany={company} />
     </div>
   );
