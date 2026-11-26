@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE_URL } from '../api/config';
 
 /**
  * Login Page Component with Two-Factor Authentication (2FA)
@@ -203,13 +204,26 @@ export default function Login() {
     }
 
     setForgotStatus({ loading: true, success: false, message: '' });
-    setTimeout(() => {
-      setForgotStatus({
-        loading: false,
-        success: true,
-        message: `Password reset instructions have been sent to ${forgotEmail}. Please check your inbox.`
+    fetch(`${API_BASE_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: forgotEmail })
+    })
+      .then((r) => r.json().then((d) => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => {
+        setForgotStatus({
+          loading: false,
+          success: ok,
+          message: d.message || d.error || 'Password reset instructions sent.'
+        });
+      })
+      .catch(() => {
+        setForgotStatus({
+          loading: false,
+          success: false,
+          message: 'Unable to send reset email right now. Please try again.'
+        });
       });
-    }, 600);
   };
 
   return (
