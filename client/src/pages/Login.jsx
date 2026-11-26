@@ -389,6 +389,8 @@ export default function Login() {
                   type="button"
                   className="btn-back-login"
                   onClick={() => {
+                    setShowForgotModal(false);
+                    setForgotStatus({ loading: false, success: false, message: '' });
                     setTempToken('');
                     setOtpDigits(['', '', '', '', '', '']);
                     setError('');
@@ -473,6 +475,8 @@ export default function Login() {
                   type="button"
                   className="btn-back-login"
                   onClick={() => {
+                    setShowForgotModal(false);
+                    setForgotStatus({ loading: false, success: false, message: '' });
                     setTempToken('');
                     setOtpDigits(['', '', '', '', '', '']);
                     setError('');
