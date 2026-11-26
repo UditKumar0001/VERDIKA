@@ -198,7 +198,7 @@ export default function Landing() {
             <div style={{ padding: '0.55rem 0.9rem', borderRadius: '10px', border: '1px solid var(--border-card)', background: '#ffffff', fontSize: '0.85rem', fontWeight: 600 }}>
               Merchant Submission
             </div>
-            <span style={{ color: '#ffffff', fontWeight: 700 }}>&rarr;</span>
+            <svg width="64" height="16" viewBox="0 0 64 16" style={{ flexShrink: 0 }}><circle cx="4" cy="8" r="3" fill="#818cf8" /><line x1="8" y1="8" x2="56" y2="8" stroke="#818cf8" strokeWidth="1.8" strokeDasharray="4 4" className="marching-dashed-border" /><circle cx="60" cy="8" r="3" fill="#818cf8" /></svg>
             <div style={{ padding: '0.55rem 0.9rem', borderRadius: '10px', border: '1px solid #4f46e5', background: '#ffffff', fontSize: '0.85rem', fontWeight: 600, color: '#4f46e5' }}>
               Risk &amp; Fraud Rules
             </div>
@@ -222,14 +222,16 @@ export default function Landing() {
             </div>
           </div>
 
+          <div style={{ display: 'flex', justifyContent: 'space-around', margin: '-0.35rem 0' }}>
+            <svg width="16" height="24" viewBox="0 0 16 24"><line x1="8" y1="0" x2="8" y2="24" stroke="#818cf8" strokeWidth="1.8" strokeDasharray="4 4" className="marching-dashed-border" /></svg>
+            <svg width="16" height="24" viewBox="0 0 16 24"><line x1="8" y1="0" x2="8" y2="24" stroke="#818cf8" strokeWidth="1.8" strokeDasharray="4 4" className="marching-dashed-border" /></svg>
+          </div>
           <div style={{ padding: '0.85rem', borderRadius: '10px', border: '1px solid var(--border-card)', background: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
             <div>
               <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Decision Intelligence</div>
               <div style={{ fontSize: '0.95rem', fontWeight: 700 }}>Signed PDF + Audit Trail</div>
             </div>
-            <span style={{ padding: '0.25rem 0.65rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600, background: 'var(--status-approved-bg)', color: 'var(--status-approved)' }}>
-              Bank Verified
-            </span>
+            
           </div>
         </div>
       </div>
