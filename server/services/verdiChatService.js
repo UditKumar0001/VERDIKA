@@ -14,6 +14,12 @@ function getContextualFallbackResponse(userMessage, context = null) {
     return details;
   }
 
+  if (msg.includes('otp') || msg.includes('2fa') || msg.includes('login') || msg.includes('password')) {
+    return "Verdika uses 2FA email OTPs for every sign-in and 15-minute reset links for forgotten passwords. Check your spam folder or use 'Forgot Password?' on the Sign In page.";
+  }
+  if (msg.includes('pdf') || msg.includes('report') || msg.includes('audit')) {
+    return "Every evaluated application generates a signed PDF underwriting report with the final verdict (Approved, Rejected, or Under Review), DSCR metrics, and full agent audit trail.";
+  }
   if (msg.includes('bank') || msg.includes('verification') || msg.includes('penny') || msg.includes('razorpay')) {
     return "Verdika verifies merchant bank accounts in real time using Razorpay Fund Account Validation (penny-drop), confirming account ownership, IFSC validity, and active status alongside 6-month PDF bank statement cash-flow parsing.";
   }
